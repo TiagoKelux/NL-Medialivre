@@ -126,7 +126,7 @@ src/app/
   api/arranque/route.ts   onde os jobs node-cron são registados
   api/ciclo/route.ts      disparo manual do ciclo
   api/gerar-dia/route.ts  disparo manual do job das 00h05
-src/components/Painel.tsx a grelha, a matriz e o painel de detalhe
+src/components/Painel.tsx a grelha, a matriz semanal e o painel de detalhe
 src/instrumentation.ts    arranque — sem imports, ver nota abaixo
 scripts/importar-horario.ts  gera a config a partir do Excel
 ```
@@ -142,6 +142,25 @@ módulos nativos (`better-sqlite3`) ou em `require("crypto")` à moda antiga
 Por isso o `instrumentation.ts` não tem imports nenhuns: faz um `POST` a
 `/api/arranque`, e é essa rota — já do lado do servidor, onde os externos são
 respeitados — que regista os dois `node-cron`. Continua a ser um processo único.
+
+## A página
+
+Um único ecrã, sem autenticação.
+
+**Filtros** por periodicidade, gerados a partir da configuração — quando as
+newsletters mudarem, os filtros acompanham.
+
+**Hoje**: uma linha por newsletter, com a newsletter e o estado. A hora prevista,
+a hora de chegada e o atraso estão atrás do botão `Mostrar horas` — com 62
+linhas, o que interessa ao relance é o estado.
+
+**Últimas 6 semanas**: a matriz é agrupada por semana, 5 colunas por semana
+(2ª a 6ª), sempre alinhada à segunda-feira. O botão `Incluir fim de semana`
+acrescenta sábado e domingo — é preciso para as duas newsletters que saem ao
+fim de semana, que de outra forma aparecem sempre a 6.
+
+Clicar numa linha ou numa célula mostra o campo `detalhe`, que explica a
+classificação por palavras.
 
 ## Produção
 

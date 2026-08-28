@@ -4,9 +4,9 @@ import { useMemo, useState } from "react";
 import { DESIGNACOES, type CodigoEstado, type Periodicidade } from "../lib/tipos.ts";
 
 /**
- * A página (§8): grelha do dia em cima, matriz de 30 dias em baixo, e o campo
- * `detalhe` ao clicar. Recebe tudo já formatado do servidor — não faz contas
- * nem conhece fusos.
+ * A página (§8): grelha do dia em cima, matriz semana a semana em baixo, e o
+ * campo `detalhe` ao clicar. Recebe tudo já formatado do servidor — não faz
+ * contas nem conhece fusos.
  */
 
 /** O que basta para saber a que filtros uma newsletter pertence. */
@@ -30,7 +30,11 @@ export interface LinhaDia extends Cadencia {
 export interface DiaMatriz {
   data: string;
   rotulo: string;
+  abreviatura: string;
   fimDeSemana: boolean;
+  /** A segunda-feira da semana a que a coluna pertence. */
+  semana: string;
+  hoje: boolean;
 }
 
 export interface CelulaMatriz {
@@ -52,6 +56,7 @@ interface Props {
   grelha: LinhaDia[];
   dias: DiaMatriz[];
   linhas: LinhaMatriz[];
+  nrSemanas: number;
 }
 
 interface Selecao {
@@ -63,12 +68,6 @@ const TODAS = "todas";
 
 const NOMES_DIAS = ["2ª", "3ª", "4ª", "5ª", "6ª", "Sábado", "Domingo"];
 
-/**
- * As chaves de filtro a que uma newsletter pertence.
- *
- * Uma semanal com mais do que um dia pertence ao filtro de cada um deles — é o
- * que se espera de quem clica em "5ª" à procura do que sai à quinta.
- */
 function chavesDe(c: Cadencia): string[] {
   switch (c.periodicidade) {
     case "diaria":
@@ -101,6 +100,15 @@ function peso(chave: string): number {
   return 1 + Number(chave.slice(4));
 }
 
+function Titulo({ marca, nome }: { marca: string; nome: string }) {
+  return (
+    <div className="titulo" title={`${marca} · ${nome}`}>
+      <span className="marca">{marca}</span>
+      <span className="nome">{nome}</span>
+    </div>
+  );
+}
+
 function Estado({ codigo }: { codigo: CodigoEstado }) {
   return (
     <span className={`estado cod-${codigo}`}>
@@ -110,16 +118,17 @@ function Estado({ codigo }: { codigo: CodigoEstado }) {
   );
 }
 
-export default function Painel({ hoje, porConfigurar, grelha, dias, linhas }: Props) {
+export default function Painel({ hoje, porConfigurar, grelha, dias, linhas, nrSemanas }: Props) {
   const [selecao, setSelecao] = useState<Selecao | null>(null);
   const [ativa, setAtiva] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<string>(TODAS);
   // Escondidas por omissão: com 62 linhas, o que importa ao relance é o
-  // estado. A hora de chegada e o atraso são para quem os for consultar.
+  // estado. As horas são para quem as for consultar.
   const [mostrarHoras, setMostrarHoras] = useState(false);
+  // A semana de trabalho são 5 dias. Sábado e domingo só interessam às poucas
+  // newsletters que saem ao fim de semana, e entram a pedido.
+  const [comFimDeSemana, setComFimDeSemana] = useState(false);
 
-  // Os filtros nascem das newsletters que existem: quando forem 62 em vez de 3,
-  // aparecem sozinhos sem ninguém tocar aqui.
   const filtros = useMemo(() => {
     const contagem = new Map<string, number>();
     for (const l of linhas) {
@@ -134,8 +143,24 @@ export default function Painel({ hoje, porConfigurar, grelha, dias, linhas }: Pr
     ];
   }, [linhas]);
 
-  const passa = (c: Cadencia) => filtro === TODAS || chavesDe(c).includes(filtro);
+  /**
+   * As colunas visíveis, agrupadas por semana. Guarda-se o índice original de
+   * cada dia porque as células das linhas continuam na ordem completa.
+   */
+  const semanas = useMemo(() => {
+    const grupos: { segunda: string; colunas: { dia: DiaMatriz; i: number }[] }[] = [];
+    dias.forEach((dia, i) => {
+      if (dia.fimDeSemana && !comFimDeSemana) return;
+      const ultimo = grupos[grupos.length - 1];
+      if (ultimo && ultimo.segunda === dia.semana) ultimo.colunas.push({ dia, i });
+      else grupos.push({ segunda: dia.semana, colunas: [{ dia, i }] });
+    });
+    return grupos;
+  }, [dias, comFimDeSemana]);
 
+  const nrColunas = semanas.reduce((t, s) => t + s.colunas.length, 0);
+
+  const passa = (c: Cadencia) => filtro === TODAS || chavesDe(c).includes(filtro);
   const grelhaVisivel = grelha.filter(passa);
   const linhasVisiveis = linhas.filter(passa);
 
@@ -190,7 +215,7 @@ export default function Painel({ hoje, porConfigurar, grelha, dias, linhas }: Pr
             aria-expanded={mostrarHoras}
             onClick={() => setMostrarHoras((v) => !v)}
           >
-            {mostrarHoras ? "Ocultar" : "Mostrar"} recebida e atraso
+            {mostrarHoras ? "Ocultar" : "Mostrar"} horas
           </button>
         </div>
         <div className="cartao">
@@ -198,7 +223,7 @@ export default function Painel({ hoje, porConfigurar, grelha, dias, linhas }: Pr
             <thead>
               <tr>
                 <th>Newsletter</th>
-                <th>Prevista</th>
+                {mostrarHoras && <th>Prevista</th>}
                 {mostrarHoras && <th>Recebida</th>}
                 {mostrarHoras && <th>Atraso</th>}
                 <th>Estado</th>
@@ -207,7 +232,7 @@ export default function Painel({ hoje, porConfigurar, grelha, dias, linhas }: Pr
             <tbody>
               {grelhaVisivel.length === 0 && (
                 <tr>
-                  <td colSpan={mostrarHoras ? 5 : 3} className="vazio">
+                  <td colSpan={mostrarHoras ? 5 : 2} className="vazio">
                     Nenhuma newsletter neste filtro.
                   </td>
                 </tr>
@@ -223,10 +248,9 @@ export default function Painel({ hoje, porConfigurar, grelha, dias, linhas }: Pr
                     onClick={() => escolher(chave, `${l.marca} · ${l.nome} — hoje`, l.detalhe)}
                   >
                     <td>
-                      <div className="marca">{l.marca}</div>
-                      <div className="nome">{l.nome}</div>
+                      <Titulo marca={l.marca} nome={l.nome} />
                     </td>
-                    <td className="numerico">{l.horaPrevista}</td>
+                    {mostrarHoras && <td className="numerico">{l.horaPrevista}</td>}
                     {mostrarHoras && (
                       <td className="numerico">
                         {l.horaRecebida ?? <span className="vazio">—</span>}
@@ -249,61 +273,93 @@ export default function Painel({ hoje, porConfigurar, grelha, dias, linhas }: Pr
       </section>
 
       <section>
-        <h2>Últimos {dias.length} dias</h2>
+        <div className="cabeca-seccao">
+          <h2>
+            Últimas {nrSemanas} semanas · {comFimDeSemana ? 7 : 5} dias por semana
+          </h2>
+          <button
+            type="button"
+            className="alternar"
+            aria-expanded={comFimDeSemana}
+            onClick={() => setComFimDeSemana((v) => !v)}
+          >
+            {comFimDeSemana ? "Só dias úteis" : "Incluir fim de semana"}
+          </button>
+        </div>
+
         <div className="cartao rolagem">
           <table className="matriz">
             <thead>
               <tr>
-                <th className="rotulo">Newsletter</th>
-                {dias.map((d) => (
-                  <th key={d.data} className={`dia ${d.fimDeSemana ? "fds" : ""}`}>
-                    {d.rotulo}
+                <th className="rotulo" rowSpan={2}>
+                  Newsletter
+                </th>
+                {semanas.map((s) => (
+                  <th key={s.segunda} className="semana" colSpan={s.colunas.length}>
+                    {s.colunas[0].dia.rotulo} –{" "}
+                    {s.colunas[s.colunas.length - 1].dia.rotulo}
                   </th>
                 ))}
+              </tr>
+              <tr>
+                {semanas.map((s) =>
+                  s.colunas.map(({ dia }, j) => (
+                    <th
+                      key={dia.data}
+                      className={`dia ${dia.fimDeSemana ? "fds" : ""} ${
+                        j === 0 ? "inicio-semana" : ""
+                      } ${dia.hoje ? "agora" : ""}`}
+                      title={dia.data}
+                    >
+                      <span className="abrev">{dia.abreviatura}</span>
+                      <span className="numero">{dia.rotulo.slice(0, 2)}</span>
+                    </th>
+                  )),
+                )}
               </tr>
             </thead>
             <tbody>
               {linhasVisiveis.length === 0 && (
                 <tr>
                   <td className="rotulo vazio">Nenhuma newsletter neste filtro.</td>
-                  {dias.map((d) => (
-                    <td key={d.data} />
-                  ))}
+                  <td colSpan={nrColunas} />
                 </tr>
               )}
               {linhasVisiveis.map((l) => (
                 <tr key={l.newsletterId}>
                   <td className="rotulo">
-                    <div className="marca">{l.marca}</div>
-                    <div className="nome">{l.nome}</div>
+                    <Titulo marca={l.marca} nome={l.nome} />
                   </td>
-                  {l.celulas.map((c, i) => {
-                    const dia = dias[i];
-                    const chave = `${l.newsletterId}:${dia.data}`;
-                    if (!c) {
+                  {semanas.map((s) =>
+                    s.colunas.map(({ dia, i }, j) => {
+                      const c = l.celulas[i];
+                      const chave = `${l.newsletterId}:${dia.data}`;
+                      const borda = j === 0 ? "inicio-semana" : "";
+                      if (!c) {
+                        return (
+                          <td key={chave} className={borda}>
+                            <span className="celula ausente">·</span>
+                          </td>
+                        );
+                      }
                       return (
-                        <td key={chave}>
-                          <span className="celula ausente">·</span>
+                        <td key={chave} className={borda}>
+                          <button
+                            type="button"
+                            className={`celula cod-${c.codigo} ${c.fechado ? "" : "aberta"} ${
+                              ativa === chave ? "ativa" : ""
+                            }`}
+                            title={`${dia.rotulo} — ${DESIGNACOES[c.codigo]}`}
+                            onClick={() =>
+                              escolher(chave, `${l.marca} · ${l.nome} — ${dia.rotulo}`, c.detalhe)
+                            }
+                          >
+                            {c.codigo}
+                          </button>
                         </td>
                       );
-                    }
-                    return (
-                      <td key={chave}>
-                        <button
-                          type="button"
-                          className={`celula cod-${c.codigo} ${c.fechado ? "" : "aberta"} ${
-                            ativa === chave ? "ativa" : ""
-                          }`}
-                          title={`${dia.rotulo} — ${DESIGNACOES[c.codigo]}`}
-                          onClick={() =>
-                            escolher(chave, `${l.marca} · ${l.nome} — ${dia.rotulo}`, c.detalhe)
-                          }
-                        >
-                          {c.codigo}
-                        </button>
-                      </td>
-                    );
-                  })}
+                    }),
+                  )}
                 </tr>
               ))}
             </tbody>

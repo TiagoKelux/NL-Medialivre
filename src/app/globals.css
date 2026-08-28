@@ -108,16 +108,16 @@ table { width: 100%; border-collapse: collapse; }
 
 .grelha th {
   text-align: left;
-  font-size: 11px;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--texto-fraco);
   font-weight: 600;
-  padding: 10px 14px;
+  padding: 7px 14px;
   border-bottom: 1px solid var(--borda);
 }
 .grelha td {
-  padding: 11px 14px;
+  padding: 6px 14px;
   border-bottom: 1px solid var(--borda);
   vertical-align: middle;
 }
@@ -126,11 +126,21 @@ table { width: 100%; border-collapse: collapse; }
 .grelha tr.clicavel:hover td { background: var(--fundo); }
 .grelha tr.selecionada td { background: var(--fundo); }
 
+.titulo {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .marca { font-weight: 600; }
-.nome { color: var(--texto-fraco); font-size: 13px; }
+.nome { color: var(--texto-fraco); overflow: hidden; text-overflow: ellipsis; }
 
 /* Linhas por fechar visualmente distintas (§8). */
-.grelha tr.aberta .marca::after {
+.grelha tr.aberta .titulo::after {
   content: "em aberto";
   display: inline-block;
   margin-left: 8px;
@@ -181,11 +191,11 @@ table { width: 100%; border-collapse: collapse; }
 .matriz th, .matriz td { padding: 0; }
 
 .matriz th.dia {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 600;
   color: var(--texto-fraco);
   padding: 8px 0 9px;
-  min-width: 32px;
+  min-width: 26px;
   text-align: center;
   font-variant-numeric: tabular-nums;
   border-bottom: 1px solid var(--borda);
@@ -205,12 +215,14 @@ table { width: 100%; border-collapse: collapse; }
   position: sticky;
   left: 0;
   background: var(--papel);
-  min-width: 190px;
+  min-width: 150px;
+  max-width: 190px;
   z-index: 1;
 }
 
 .matriz td.rotulo {
-  padding: 0 14px;
+  padding: 2px 12px;
+  max-width: 190px;
   white-space: nowrap;
   position: sticky;
   left: 0;
@@ -220,8 +232,8 @@ table { width: 100%; border-collapse: collapse; }
 }
 
 .celula {
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   margin: 1px auto;
   display: grid;
   place-items: center;
@@ -347,3 +359,29 @@ table { width: 100%; border-collapse: collapse; }
 }
 .alternar:hover { border-color: var(--texto-fraco); color: var(--texto); }
 .alternar[aria-expanded="true"] { border-color: var(--realce); color: var(--texto); }
+
+/* ── Matriz agrupada por semana ────────────────────────────────────────── */
+.matriz th.semana {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--texto-fraco);
+  padding: 6px 4px 4px;
+  text-align: center;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--borda);
+  border-left: 1px solid var(--borda);
+}
+.matriz th.semana:first-of-type { border-left: none; }
+
+/* A linha que separa uma semana da seguinte. */
+.matriz th.dia.inicio-semana,
+.matriz td.inicio-semana { border-left: 1px solid var(--borda); }
+
+.matriz th.dia { padding: 4px 0 5px; line-height: 1.25; }
+.matriz th.dia .abrev { display: block; }
+.matriz th.dia .numero { display: block; font-weight: 400; opacity: 0.65; }
+
+/* O dia de hoje fica marcado na régua. */
+.matriz th.dia.agora { color: var(--realce); }
+.matriz th.dia.agora .numero { opacity: 1; }

@@ -6,4 +6,4 @@ import { db } from "../src/lib/db.ts";
 import { garantirDias } from "../src/lib/registos.ts";
 
 db();
-console.log(`Base de dados pronta. ${garantirDias(30)} registo(s) criados.`);
+console.log(`Base de dados pronta. ${garantirDias(45)} registo(s) criados.`);

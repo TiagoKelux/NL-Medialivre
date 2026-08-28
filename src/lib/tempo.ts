@@ -118,3 +118,25 @@ export function diaMes(data: string): string {
   const [, mes, dia] = data.split("-");
   return `${dia}/${mes}`;
 }
+
+/** A segunda-feira da semana a que um dia local pertence. */
+export function segundaDaSemana(data: string): string {
+  return somarDias(data, -(diaSemanaISO(data) - 1));
+}
+
+/** Todos os dias de `de` até `ate`, inclusive. */
+export function intervaloDias(de: string, ate: string): string[] {
+  const dias: string[] = [];
+  for (let d = de; d <= ate; d = somarDias(d, 1)) dias.push(d);
+  return dias;
+}
+
+/**
+ * Os dias das últimas `nrSemanas` semanas, a começar sempre a uma segunda e a
+ * acabar em `ate`. É o que garante que a matriz se lê semana a semana, com as
+ * colunas sempre alinhadas ao mesmo dia da semana.
+ */
+export function ultimasSemanas(nrSemanas: number, ate: string = dataLocal()): string[] {
+  const primeiraSegunda = somarDias(segundaDaSemana(ate), -7 * (nrSemanas - 1));
+  return intervaloDias(primeiraSegunda, ate);
+}

@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export async function POST() {
   try {
     const hoje = gerarDia();
-    const recuperados = garantirDias(30);
+    const recuperados = garantirDias(45);
     return NextResponse.json({ ok: true, hoje, recuperados });
   } catch (erro) {
     return NextResponse.json({ ok: false, erro: (erro as Error).message }, { status: 500 });

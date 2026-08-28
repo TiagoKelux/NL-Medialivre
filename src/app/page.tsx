@@ -1,6 +1,13 @@
 import { NEWSLETTERS, estaConfigurada } from "../../config/newsletters.ts";
 import { garantirDias, grelhaDoDia, matriz } from "../lib/registos.ts";
-import { dataLocal, diaMes, diaSemanaISO, horaLocal } from "../lib/tempo.ts";
+import {
+  dataLocal,
+  diaMes,
+  diaSemanaISO,
+  horaLocal,
+  segundaDaSemana,
+  ultimasSemanas,
+} from "../lib/tempo.ts";
 import Painel, {
   type CelulaMatriz,
   type LinhaDia,
@@ -10,12 +17,19 @@ import Painel, {
 // A página lê o estado atual da base de dados a cada pedido.
 export const dynamic = "force-dynamic";
 
+/** Seis semanas ≈ os 30 dias úteis que a spec pedia, mas alinhados à segunda. */
+const NR_SEMANAS = 6;
+
+const ABREVIATURAS = ["2ª", "3ª", "4ª", "5ª", "6ª", "Sá", "Do"];
+
 export default function Pagina() {
   const hoje = dataLocal();
 
   // Em desenvolvimento o agendador pode ainda não ter corrido; sem isto a
   // primeira visita apanhava a página vazia.
-  garantirDias(30);
+  // Cobre exatamente as semanas que a matriz mostra, senao as primeiras
+  // colunas aparecem vazias.
+  garantirDias(NR_SEMANAS * 7);
 
   const grelha: LinhaDia[] = grelhaDoDia(hoje).map((l) => ({
     newsletterId: l.newsletter_id,
@@ -34,13 +48,20 @@ export default function Pagina() {
     diasSemana: l.dias_semana,
   }));
 
-  const m = matriz(30, hoje);
+  const m = matriz(ultimasSemanas(NR_SEMANAS, hoje));
 
-  const dias = m.dias.map((d) => ({
-    data: d,
-    rotulo: diaMes(d),
-    fimDeSemana: diaSemanaISO(d) >= 6,
-  }));
+  const dias = m.dias.map((d) => {
+    const dow = diaSemanaISO(d);
+    return {
+      data: d,
+      rotulo: diaMes(d),
+      abreviatura: ABREVIATURAS[dow - 1],
+      fimDeSemana: dow >= 6,
+      // A segunda-feira agrupa a coluna na sua semana.
+      semana: segundaDaSemana(d),
+      hoje: d === hoje,
+    };
+  });
 
   const linhas: LinhaMatriz[] = m.linhas.map((l) => ({
     newsletterId: l.newsletter.id,
@@ -62,6 +83,7 @@ export default function Pagina() {
       grelha={grelha}
       dias={dias}
       linhas={linhas}
+      nrSemanas={NR_SEMANAS}
     />
   );
 }

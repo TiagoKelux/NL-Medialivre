@@ -207,8 +207,7 @@ export interface Matriz {
 }
 
 /** §8 baixo — matriz dos últimos 30 dias, por pivot sobre `registos`. */
-export function matriz(nrDias: number = 30, ate: string = dataLocal()): Matriz {
-  const dias = ultimosDias(nrDias, ate);
+export function matriz(dias: string[]): Matriz {
   const registos = db()
     .prepare(`SELECT * FROM registos WHERE data_prevista >= ? AND data_prevista <= ?`)
     .all(dias[0], dias[dias.length - 1]) as Registo[];

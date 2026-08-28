@@ -55,7 +55,7 @@ export async function POST() {
   );
 
   // Arranque: tapar buracos deixados por uma paragem do processo (critério 1).
-  const recuperados = garantirDias(30);
+  const recuperados = garantirDias(45);
   const passos = await correrCiclo().catch((e) => [`falha: ${(e as Error).message}`]);
 
   registar(`Jobs agendados. Fuso: ${fuso}. Recuperados: ${recuperados}. ${passos.join(" · ")}`);
