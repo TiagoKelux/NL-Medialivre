@@ -114,6 +114,9 @@ export default function Painel({ hoje, porConfigurar, grelha, dias, linhas }: Pr
   const [selecao, setSelecao] = useState<Selecao | null>(null);
   const [ativa, setAtiva] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<string>(TODAS);
+  // Escondidas por omissão: com 62 linhas, o que importa ao relance é o
+  // estado. A hora de chegada e o atraso são para quem os for consultar.
+  const [mostrarHoras, setMostrarHoras] = useState(false);
 
   // Os filtros nascem das newsletters que existem: quando forem 62 em vez de 3,
   // aparecem sozinhos sem ninguém tocar aqui.
@@ -179,22 +182,32 @@ export default function Painel({ hoje, porConfigurar, grelha, dias, linhas }: Pr
       </nav>
 
       <section>
-        <h2>Hoje</h2>
+        <div className="cabeca-seccao">
+          <h2>Hoje</h2>
+          <button
+            type="button"
+            className="alternar"
+            aria-expanded={mostrarHoras}
+            onClick={() => setMostrarHoras((v) => !v)}
+          >
+            {mostrarHoras ? "Ocultar" : "Mostrar"} recebida e atraso
+          </button>
+        </div>
         <div className="cartao">
           <table className="grelha">
             <thead>
               <tr>
                 <th>Newsletter</th>
                 <th>Prevista</th>
-                <th>Recebida</th>
-                <th>Atraso</th>
+                {mostrarHoras && <th>Recebida</th>}
+                {mostrarHoras && <th>Atraso</th>}
                 <th>Estado</th>
               </tr>
             </thead>
             <tbody>
               {grelhaVisivel.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="vazio">
+                  <td colSpan={mostrarHoras ? 5 : 3} className="vazio">
                     Nenhuma newsletter neste filtro.
                   </td>
                 </tr>
@@ -214,12 +227,16 @@ export default function Painel({ hoje, porConfigurar, grelha, dias, linhas }: Pr
                       <div className="nome">{l.nome}</div>
                     </td>
                     <td className="numerico">{l.horaPrevista}</td>
-                    <td className="numerico">
-                      {l.horaRecebida ?? <span className="vazio">—</span>}
-                    </td>
-                    <td className="numerico">
-                      {l.atraso ?? <span className="vazio">—</span>}
-                    </td>
+                    {mostrarHoras && (
+                      <td className="numerico">
+                        {l.horaRecebida ?? <span className="vazio">—</span>}
+                      </td>
+                    )}
+                    {mostrarHoras && (
+                      <td className="numerico">
+                        {l.atraso ?? <span className="vazio">—</span>}
+                      </td>
+                    )}
                     <td>
                       <Estado codigo={l.codigo} />
                     </td>

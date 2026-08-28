@@ -322,3 +322,28 @@ table { width: 100%; border-collapse: collapse; }
   background: var(--realce);
   color: var(--papel);
 }
+
+/* ── Cabeçalho de secção com um botão à direita ────────────────────────── */
+.cabeca-seccao {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.cabeca-seccao > h2 { margin-bottom: 0; }
+
+.alternar {
+  border: 1px solid var(--borda);
+  background: var(--papel);
+  color: var(--texto-fraco);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.12s, color 0.12s;
+}
+.alternar:hover { border-color: var(--texto-fraco); color: var(--texto); }
+.alternar[aria-expanded="true"] { border-color: var(--realce); color: var(--texto); }
