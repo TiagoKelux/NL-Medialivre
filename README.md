@@ -145,22 +145,31 @@ respeitados — que regista os dois `node-cron`. Continua a ser um processo úni
 
 ## A página
 
-Um único ecrã, sem autenticação.
+Um único ecrã e um único quadro, sem autenticação.
 
-**Filtros** por periodicidade, gerados a partir da configuração — quando as
-newsletters mudarem, os filtros acompanham.
+**Duas linhas de filtro:**
 
-**Hoje**: uma linha por newsletter, com a newsletter e o estado. A hora prevista,
-a hora de chegada e o atraso estão atrás do botão `Mostrar horas` — com 62
-linhas, o que interessa ao relance é o estado.
+- **Periodicidade** — Todas, Todos os dias, 2ª a 6ª, um por cada dia da semana,
+  Dia do mês, Sem agenda. São gerados a partir da configuração: quando as
+  newsletters mudarem, os filtros acompanham.
+- **Visão** — Diária, Semanal, Mensal. Mudam o nível de zoom do mesmo quadro.
 
-**Últimas 6 semanas**: a matriz é agrupada por semana, 5 colunas por semana
-(2ª a 6ª), sempre alinhada à segunda-feira. O botão `Incluir fim de semana`
-acrescenta sábado e domingo — é preciso para as duas newsletters que saem ao
-fim de semana, que de outra forma aparecem sempre a 6.
+| Visão | O que mostra |
+|---|---|
+| Diária | Só hoje: newsletter e estado por extenso. As horas (prevista, recebida, atraso) estão atrás do botão `Mostrar horas` |
+| Semanal | 6 semanas, agrupadas por semana, 5 colunas cada (2ª a 6ª), alinhadas à segunda-feira |
+| Mensal | 3 meses, agrupados por mês |
+
+Nas vistas semanal e mensal, o botão `Incluir fim de semana` acrescenta sábado
+e domingo — é preciso para as duas newsletters que saem ao fim de semana, que
+de outra forma aparecem sempre a 6.
+
+As três vistas são fatias do mesmo intervalo, carregado de uma vez: trocar de
+vista não custa uma ida ao servidor.
 
 Clicar numa linha ou numa célula mostra o campo `detalhe`, que explica a
-classificação por palavras.
+classificação por palavras. A **legenda dos códigos está fixa no fundo**, para
+estar à mão em qualquer ponto do scroll.
 
 ## Produção
 

@@ -61,7 +61,7 @@ body {
 .envolucro {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 28px 20px 64px;
+  padding: 28px 20px 84px;
 }
 
 header.topo { margin-bottom: 26px; }
@@ -282,15 +282,7 @@ table { width: 100%; border-collapse: collapse; }
 }
 .detalhe .corpo { font-size: 14px; }
 
-.legenda {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  margin-top: 12px;
-  font-size: 12px;
-  color: var(--texto-fraco);
-}
-.legenda .estado { font-size: 12px; }
+
 
 /* ── Filtros por periodicidade ─────────────────────────────────────────── */
 .filtros {
@@ -375,8 +367,8 @@ table { width: 100%; border-collapse: collapse; }
 .matriz th.semana:first-of-type { border-left: none; }
 
 /* A linha que separa uma semana da seguinte. */
-.matriz th.dia.inicio-semana,
-.matriz td.inicio-semana { border-left: 1px solid var(--borda); }
+.matriz th.dia.inicio-grupo,
+.matriz td.inicio-grupo { border-left: 1px solid var(--borda); }
 
 .matriz th.dia { padding: 4px 0 5px; line-height: 1.25; }
 .matriz th.dia .abrev { display: block; }
@@ -385,3 +377,68 @@ table { width: 100%; border-collapse: collapse; }
 /* O dia de hoje fica marcado na régua. */
 .matriz th.dia.agora { color: var(--realce); }
 .matriz th.dia.agora .numero { opacity: 1; }
+
+/* ── Linhas de filtro: periodicidade em cima, visão em baixo ───────────── */
+.linha-filtros {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.linha-filtros:last-of-type { margin-bottom: 24px; }
+
+.rotulo-filtros {
+  flex: 0 0 96px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 600;
+  color: var(--texto-fraco);
+  padding-top: 7px;
+}
+
+.filtros { margin-bottom: 0; }
+
+.cabeca-seccao { align-items: center; }
+.controlos { display: flex; align-items: center; gap: 12px; }
+
+/* ── Legenda fixa no fundo ─────────────────────────────────────────────── */
+.legenda {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 20px;
+  padding: 9px 20px;
+  background: var(--papel);
+  border-top: 1px solid var(--borda);
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.18);
+}
+.legenda .estado { font-size: 12px; font-weight: 500; }
+.legenda .estado .digito { width: 19px; height: 19px; font-size: 11.5px; }
+
+/* Em ecrãs estreitos fica só o número, para não ocupar meia página. */
+@media (max-width: 820px) {
+  .legenda { gap: 6px 12px; }
+  .legenda .estado > span:last-child { display: none; }
+}
+
+/* ── Botão de fechar o detalhe ─────────────────────────────────────────── */
+.detalhe { position: relative; }
+.detalhe .fechar {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  border: none;
+  background: none;
+  color: var(--texto-fraco);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.detalhe .fechar:hover { color: var(--texto); text-decoration: underline; }

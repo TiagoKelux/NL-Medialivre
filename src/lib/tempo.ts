@@ -140,3 +140,24 @@ export function ultimasSemanas(nrSemanas: number, ate: string = dataLocal()): st
   const primeiraSegunda = somarDias(segundaDaSemana(ate), -7 * (nrSemanas - 1));
   return intervaloDias(primeiraSegunda, ate);
 }
+
+const NOMES_MESES = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
+
+/** "2026-08-28" → "2026-08-01". */
+export function primeiroDiaDoMes(data: string): string {
+  return `${data.slice(0, 7)}-01`;
+}
+
+/** Soma meses de calendário, devolvendo sempre o dia 1. */
+export function somarMeses(data: string, meses: number): string {
+  const [ano, mes] = data.split("-").map(Number);
+  return new Date(Date.UTC(ano, mes - 1 + meses, 1)).toISOString().slice(0, 10);
+}
+
+/** "2026-08-28" → "Agosto". */
+export function nomeMes(data: string): string {
+  return NOMES_MESES[Number(data.slice(5, 7)) - 1];
+}
