@@ -12,7 +12,8 @@
     "listar": "node --env-file=.env scripts/listar.ts",
     "recolher": "node --env-file=.env scripts/recolher.ts",
     "migrar": "node --env-file=.env scripts/migrar.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "importar": "node scripts/importar-horario.ts"
   },
   "dependencies": {
     "@azure/msal-node": "^2.16.2",

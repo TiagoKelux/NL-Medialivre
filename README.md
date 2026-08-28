@@ -50,9 +50,29 @@ A app precisa de:
 - **Allow public client flows** ativo — sem isto o fluxo *device code* não
   devolve refresh token.
 
-## Preencher as newsletters
+## As newsletters
 
-`config/newsletters.ts` tem as três entradas. Os campos `remetentes` e
+`config/newsletters.ts` é **gerado** a partir da folha "Horário" do Excel:
+
+```bash
+npm run importar -- "C:/caminho/Newsletters Horários.xlsx"
+```
+
+São 62 newsletters, 48 ativas. Não editar periodicidades nem horas à mão —
+mexer no Excel e voltar a correr o importador, que lê o `.xlsx` diretamente
+(sem dependências: um xlsx é um zip, e o `node:zlib` chega para o abrir).
+
+O importador desliga (`ativa: false`) tudo o que não consiga agendar com
+segurança — estado que não seja "Ativa", periodicidade que não reconheça, ou
+hora em falta — e deixa um comentário por cima da entrada a dizer porquê. É
+preferível uma linha a cinzento do que inventar um horário que o Excel não diz.
+
+Onde o Excel tem duas horas ("12h ou 18h", "16h30 // 17h"), toma-se a mais cedo
+como prevista e alarga-se a tolerância até cobrir a mais tarde.
+
+### Preencher os remetentes
+
+O Excel não tem esta informação. Os campos `remetentes` e
 `padraoAssunto` começam vazios e são o único bloqueio: não estão no Excel e têm
 de vir de emails reais. Enquanto estiverem vazios, o sistema **recolhe e guarda**
 os emails mas não os classifica, e a página mostra um aviso.
@@ -80,12 +100,13 @@ distinção de maiúsculas.
 | `npm run listar` | Lista os emails das últimas 24 h na consola, sem gravar |
 | `npm run recolher` | Corre um ciclo de recolha à mão |
 | `npm run migrar` | Cria a base de dados e tapa buracos nos últimos 30 dias |
+| `npm run importar -- <xlsx>` | Regera `config/newsletters.ts` a partir do Excel |
 | `npm run typecheck` | `tsc --noEmit` |
 
 ## Estrutura
 
 ```
-config/newsletters.ts     as três newsletters, escritas à mão
+config/newsletters.ts     as 62 newsletters — GERADO, não editar à mão
 src/lib/
   tipos.ts                códigos, designações, cores, tipos das tabelas
   tempo.ts                fuso Europe/Lisbon, dias locais, horas de corte
@@ -107,6 +128,7 @@ src/app/
   api/gerar-dia/route.ts  disparo manual do job das 00h05
 src/components/Painel.tsx a grelha, a matriz e o painel de detalhe
 src/instrumentation.ts    arranque — sem imports, ver nota abaixo
+scripts/importar-horario.ts  gera a config a partir do Excel
 ```
 
 ### Nota sobre o arranque
@@ -132,6 +154,10 @@ Processo único. Sem Docker, sem Postgres, sem proxy.
 
 ## O que está fora desta versão
 
-Importação do Excel e do histórico; células com o valor `c`; as restantes 60
-newsletters; CRUD de newsletters; autenticação; exportação CSV/XLSX; correções
-manuais e auditoria; ecrã de emails não classificados; alertas.
+Importação do **histórico** do Excel (a grelha dia-a-dia das folhas "Todos os
+Dias", "2ª a 6ª" e "Semanal"); células com o valor `c`; CRUD de newsletters pela
+interface; autenticação; exportação CSV/XLSX; correções manuais e auditoria;
+ecrã de emails não classificados; alertas.
+
+As 62 newsletters **já estão** configuradas — o que a spec v3 punha fora de
+âmbito era escrevê-las à mão, e isso resolveu-se com o importador.

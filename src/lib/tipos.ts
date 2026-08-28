@@ -25,7 +25,19 @@ export const CORES: Record<CodigoEstado, string> = {
   6: "cinzento",
 };
 
-export type Periodicidade = "diaria" | "dias_uteis" | "dia_semana";
+/**
+ * As cadencias que o Excel usa.
+ *
+ * `dia_mes` cobre "ao dia 1 de cada mes". `nao_agendada` cobre as "Mensal"
+ * sem dia nem hora definidos e a "Sem periodicidade" — saem sem dia
+ * previsivel, portanto nao ha janela nenhuma contra a qual as comparar.
+ */
+export type Periodicidade =
+  | "diaria"
+  | "dias_uteis"
+  | "dia_semana"
+  | "dia_mes"
+  | "nao_agendada";
 
 export interface Newsletter {
   id: string;
@@ -34,6 +46,8 @@ export interface Newsletter {
   periodicidade: Periodicidade;
   /** Dias ISO da semana (1 = segunda … 7 = domingo). Só para `dia_semana`. */
   diasSemana: number[] | null;
+  /** Dias do mês (1 a 31). Só para `dia_mes`. */
+  diasMes: number[] | null;
   /** "HH:MM" na hora local de Europe/Lisbon. */
   horaPrevista: string;
   toleranciaMinutos: number;

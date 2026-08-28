@@ -65,6 +65,11 @@ export function ehDiaEsperado(n: Newsletter, data: string): boolean {
       return dow >= 1 && dow <= 5;
     case "dia_semana":
       return (n.diasSemana ?? []).includes(dow);
+    case "dia_mes":
+      return (n.diasMes ?? []).includes(Number(data.slice(8, 10)));
+    case "nao_agendada":
+      // Sem dia previsivel nao ha janela: nunca se espera num dia concreto.
+      return false;
   }
 }
 
@@ -78,6 +83,12 @@ function descreverPeriodicidade(n: Newsletter): string {
       const dias = (n.diasSemana ?? []).map((d) => NOMES_DIAS[d - 1]).join(" e ");
       return dias ? `esperada só à ${dias.toLowerCase()}` : "sem dias configurados";
     }
+    case "dia_mes": {
+      const dias = (n.diasMes ?? []).join(" e ");
+      return dias ? `esperada ao dia ${dias} de cada mês` : "sem dia do mês configurado";
+    }
+    case "nao_agendada":
+      return "sai sem dia previsível, não há janela para comparar";
   }
 }
 

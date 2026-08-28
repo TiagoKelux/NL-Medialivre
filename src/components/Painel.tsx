@@ -77,20 +77,27 @@ function chavesDe(c: Cadencia): string[] {
       return ["dias_uteis"];
     case "dia_semana":
       return (c.diasSemana ?? []).map((d) => `dia:${d}`);
+    case "dia_mes":
+      return ["dia_mes"];
+    case "nao_agendada":
+      return ["nao_agendada"];
   }
 }
 
 function rotuloDe(chave: string): string {
   if (chave === "diaria") return "Todos os dias";
   if (chave === "dias_uteis") return "2ª a 6ª";
-  const d = Number(chave.slice(4));
-  return NOMES_DIAS[d - 1] ?? chave;
+  if (chave === "dia_mes") return "Dia do mês";
+  if (chave === "nao_agendada") return "Sem agenda";
+  return NOMES_DIAS[Number(chave.slice(4)) - 1] ?? chave;
 }
 
-/** Ordem de apresentação: diárias, dias úteis, depois 2ª → domingo. */
+/** Ordem: diárias, dias úteis, 2ª → domingo, depois as que não têm agenda. */
 function peso(chave: string): number {
   if (chave === "diaria") return 0;
   if (chave === "dias_uteis") return 1;
+  if (chave === "dia_mes") return 10;
+  if (chave === "nao_agendada") return 11;
   return 1 + Number(chave.slice(4));
 }
 
@@ -143,11 +150,16 @@ export default function Painel({ hoje, porConfigurar, grelha, dias, linhas }: Pr
 
       {porConfigurar.length > 0 && (
         <div className="aviso">
-          <strong>Faltam remetentes e padrão de assunto</strong>
-          {porConfigurar.join(", ")} ainda não sabem reconhecer os seus emails. Os
-          emails continuam a ser recolhidos e guardados, mas não são classificados
-          até preencheres <code>remetentes</code> e <code>padraoAssunto</code> em{" "}
-          <code>config/newsletters.ts</code>.
+          <strong>
+            {porConfigurar.length === 1
+              ? "1 newsletter ainda não reconhece os seus emails"
+              : `${porConfigurar.length} newsletters ainda não reconhecem os seus emails`}
+          </strong>
+          Os emails continuam a ser recolhidos e guardados, mas não são
+          classificados até preencheres <code>remetentes</code> e{" "}
+          <code>padraoAssunto</code> em <code>config/newsletters.ts</code>. Corre{" "}
+          <code>npm run listar</code> para descobrir os valores reais.
+          {porConfigurar.length <= 6 && ` — ${porConfigurar.join(", ")}.`}
         </div>
       )}
 
