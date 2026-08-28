@@ -1,0 +1,35 @@
+{
+  "name": "media-livre-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Media Livre — Monitor de Newsletters (MVP v3)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "auth": "node --env-file=.env scripts/auth.ts",
+    "listar": "node --env-file=.env scripts/listar.ts",
+    "recolher": "node --env-file=.env scripts/recolher.ts",
+    "migrar": "node --env-file=.env scripts/migrar.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^2.16.2",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "better-sqlite3": "^12.11.1",
+    "dotenv": "^16.4.7",
+    "next": "^15.1.6",
+    "node-cron": "^3.0.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.7",
+    "@types/node-cron": "^3.0.11",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "typescript": "^5.7.3"
+  }
+}

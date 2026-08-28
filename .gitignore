@@ -25,3 +25,12 @@ desktop.ini
 # Editores
 .vscode/
 .idea/
+
+# Base de dados e ambiente local
+data/
+*.db
+*.db-wal
+*.db-shm
+.next/
+next-env.d.ts
+*.tsbuildinfo
