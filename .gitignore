@@ -1,0 +1,27 @@
+# Dependências
+node_modules/
+venv/
+.venv/
+__pycache__/
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Ambiente
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores
+.vscode/
+.idea/
