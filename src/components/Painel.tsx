@@ -327,7 +327,7 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
               </tbody>
             </table>
           ) : (
-            <table className="matriz">
+            <table className={`matriz ${nrColunas <= 8 ? "larga" : ""}`}>
               <thead>
                 <tr>
                   <th className="rotulo" rowSpan={2}>

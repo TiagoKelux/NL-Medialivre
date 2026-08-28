@@ -481,3 +481,34 @@ a.alternar { text-decoration: none; display: inline-block; }
 /* Com poucas colunas, a matriz não deve esticar a coluna do nome até ao fim. */
 .matriz { width: auto; }
 .matriz td.rotulo, .matriz th.rotulo { width: 190px; }
+
+/* ── Matriz com poucas colunas: aproveitar o espaço que sobra ───────────── */
+/* Numa semana são 5 colunas. Deixá-las com 24px é desperdiçar meia página e
+   tornar os números mais pequenos do que precisavam de ser. */
+.matriz.larga { width: 100%; }
+
+.matriz.larga th.semana { font-size: 11px; padding: 9px 4px 7px; }
+
+.matriz.larga th.dia {
+  font-size: 12px;
+  padding: 9px 0 10px;
+  min-width: 0;
+}
+.matriz.larga th.dia .numero { font-size: 13px; }
+
+.matriz.larga td { text-align: center; }
+
+.matriz.larga .celula {
+  /* Quadrados, nao barras: e o formato que mantem a leitura de matriz. */
+  width: 46px;
+  max-width: 46px;
+  height: 44px;
+  margin: 3px auto;
+  border-radius: 8px;
+  font-size: 17px;
+}
+.matriz.larga .celula.ausente { font-size: 15px; }
+
+.matriz.larga td.rotulo,
+.matriz.larga th.rotulo { width: 240px; }
+.matriz.larga td.rotulo .titulo { font-size: 14px; }
