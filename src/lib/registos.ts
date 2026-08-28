@@ -2,7 +2,7 @@ import { db } from "./db.ts";
 import { NEWSLETTERS, newsletterPorId } from "../../config/newsletters.ts";
 import { classificar, type EdicaoAnterior, type Ocorrencia } from "./classificacao.ts";
 import { dataLocal, paraInstante, paraIso, somarDias, somarMinutos, ultimosDias } from "./tempo.ts";
-import type { CodigoEstado, Newsletter, Registo } from "./tipos.ts";
+import type { CodigoEstado, Newsletter, Periodicidade, Registo } from "./tipos.ts";
 
 /**
  * Tudo o que cria e atualiza linhas em `registos`.
@@ -166,6 +166,8 @@ export interface LinhaGrelha extends Registo {
   marca: string;
   nome: string;
   hora_prevista: string;
+  periodicidade: Periodicidade;
+  dias_semana: number[] | null;
 }
 
 function enriquecer(reg: Registo): LinhaGrelha {
@@ -175,6 +177,8 @@ function enriquecer(reg: Registo): LinhaGrelha {
     marca: n?.marca ?? "?",
     nome: n?.nome ?? reg.newsletter_id,
     hora_prevista: n?.horaPrevista ?? "--:--",
+    periodicidade: n?.periodicidade ?? "diaria",
+    dias_semana: n?.diasSemana ?? null,
   };
 }
 

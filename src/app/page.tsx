@@ -30,6 +30,8 @@ export default function Pagina() {
     codigo: l.codigo_estado,
     detalhe: l.detalhe,
     fechado: l.fechado === 1,
+    periodicidade: l.periodicidade,
+    diasSemana: l.dias_semana,
   }));
 
   const m = matriz(30, hoje);
@@ -44,6 +46,8 @@ export default function Pagina() {
     newsletterId: l.newsletter.id,
     marca: l.newsletter.marca,
     nome: l.newsletter.nome,
+    periodicidade: l.newsletter.periodicidade,
+    diasSemana: l.newsletter.diasSemana,
     celulas: l.celulas as (CelulaMatriz | null)[],
   }));
 

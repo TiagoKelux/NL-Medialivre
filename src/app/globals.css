@@ -279,3 +279,46 @@ table { width: 100%; border-collapse: collapse; }
   color: var(--texto-fraco);
 }
 .legenda .estado { font-size: 12px; }
+
+/* ── Filtros por periodicidade ─────────────────────────────────────────── */
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 24px;
+}
+
+.filtro {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  background: var(--papel);
+  color: var(--texto-fraco);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.filtro:hover { border-color: var(--texto-fraco); color: var(--texto); }
+
+.filtro.escolhido {
+  border-color: var(--realce);
+  color: var(--texto);
+  font-weight: 600;
+}
+
+.filtro .conta {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  background: var(--fundo);
+  border-radius: 999px;
+  padding: 1px 7px;
+  color: var(--texto-fraco);
+}
+.filtro.escolhido .conta {
+  background: var(--realce);
+  color: var(--papel);
+}

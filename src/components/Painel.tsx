@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { DESIGNACOES, type CodigoEstado } from "../lib/tipos.ts";
+import { useMemo, useState } from "react";
+import { DESIGNACOES, type CodigoEstado, type Periodicidade } from "../lib/tipos.ts";
 
 /**
  * A página (§8): grelha do dia em cima, matriz de 30 dias em baixo, e o campo
@@ -9,7 +9,13 @@ import { DESIGNACOES, type CodigoEstado } from "../lib/tipos.ts";
  * nem conhece fusos.
  */
 
-export interface LinhaDia {
+/** O que basta para saber a que filtros uma newsletter pertence. */
+interface Cadencia {
+  periodicidade: Periodicidade;
+  diasSemana: number[] | null;
+}
+
+export interface LinhaDia extends Cadencia {
   newsletterId: string;
   marca: string;
   nome: string;
@@ -33,7 +39,7 @@ export interface CelulaMatriz {
   fechado: boolean;
 }
 
-export interface LinhaMatriz {
+export interface LinhaMatriz extends Cadencia {
   newsletterId: string;
   marca: string;
   nome: string;
@@ -53,6 +59,41 @@ interface Selecao {
   detalhe: string;
 }
 
+const TODAS = "todas";
+
+const NOMES_DIAS = ["2ª", "3ª", "4ª", "5ª", "6ª", "Sábado", "Domingo"];
+
+/**
+ * As chaves de filtro a que uma newsletter pertence.
+ *
+ * Uma semanal com mais do que um dia pertence ao filtro de cada um deles — é o
+ * que se espera de quem clica em "5ª" à procura do que sai à quinta.
+ */
+function chavesDe(c: Cadencia): string[] {
+  switch (c.periodicidade) {
+    case "diaria":
+      return ["diaria"];
+    case "dias_uteis":
+      return ["dias_uteis"];
+    case "dia_semana":
+      return (c.diasSemana ?? []).map((d) => `dia:${d}`);
+  }
+}
+
+function rotuloDe(chave: string): string {
+  if (chave === "diaria") return "Todos os dias";
+  if (chave === "dias_uteis") return "2ª a 6ª";
+  const d = Number(chave.slice(4));
+  return NOMES_DIAS[d - 1] ?? chave;
+}
+
+/** Ordem de apresentação: diárias, dias úteis, depois 2ª → domingo. */
+function peso(chave: string): number {
+  if (chave === "diaria") return 0;
+  if (chave === "dias_uteis") return 1;
+  return 1 + Number(chave.slice(4));
+}
+
 function Estado({ codigo }: { codigo: CodigoEstado }) {
   return (
     <span className={`estado cod-${codigo}`}>
@@ -65,6 +106,28 @@ function Estado({ codigo }: { codigo: CodigoEstado }) {
 export default function Painel({ hoje, porConfigurar, grelha, dias, linhas }: Props) {
   const [selecao, setSelecao] = useState<Selecao | null>(null);
   const [ativa, setAtiva] = useState<string | null>(null);
+  const [filtro, setFiltro] = useState<string>(TODAS);
+
+  // Os filtros nascem das newsletters que existem: quando forem 62 em vez de 3,
+  // aparecem sozinhos sem ninguém tocar aqui.
+  const filtros = useMemo(() => {
+    const contagem = new Map<string, number>();
+    for (const l of linhas) {
+      for (const chave of chavesDe(l)) {
+        contagem.set(chave, (contagem.get(chave) ?? 0) + 1);
+      }
+    }
+    const ordenados = [...contagem.entries()].sort((a, b) => peso(a[0]) - peso(b[0]));
+    return [
+      { chave: TODAS, rotulo: "Todas", n: linhas.length },
+      ...ordenados.map(([chave, n]) => ({ chave, rotulo: rotuloDe(chave), n })),
+    ];
+  }, [linhas]);
+
+  const passa = (c: Cadencia) => filtro === TODAS || chavesDe(c).includes(filtro);
+
+  const grelhaVisivel = grelha.filter(passa);
+  const linhasVisiveis = linhas.filter(passa);
 
   function escolher(chave: string, titulo: string, detalhe: string) {
     setAtiva(chave);
@@ -88,6 +151,21 @@ export default function Painel({ hoje, porConfigurar, grelha, dias, linhas }: Pr
         </div>
       )}
 
+      <nav className="filtros" aria-label="Filtrar por periodicidade">
+        {filtros.map((f) => (
+          <button
+            key={f.chave}
+            type="button"
+            className={`filtro ${filtro === f.chave ? "escolhido" : ""}`}
+            aria-pressed={filtro === f.chave}
+            onClick={() => setFiltro(f.chave)}
+          >
+            {f.rotulo}
+            <span className="conta">{f.n}</span>
+          </button>
+        ))}
+      </nav>
+
       <section>
         <h2>Hoje</h2>
         <div className="cartao">
@@ -102,14 +180,14 @@ export default function Painel({ hoje, porConfigurar, grelha, dias, linhas }: Pr
               </tr>
             </thead>
             <tbody>
-              {grelha.length === 0 && (
+              {grelhaVisivel.length === 0 && (
                 <tr>
                   <td colSpan={5} className="vazio">
-                    Ainda não há registos para hoje.
+                    Nenhuma newsletter neste filtro.
                   </td>
                 </tr>
               )}
-              {grelha.map((l) => {
+              {grelhaVisivel.map((l) => {
                 const chave = `dia:${l.newsletterId}`;
                 return (
                   <tr
@@ -156,7 +234,15 @@ export default function Painel({ hoje, porConfigurar, grelha, dias, linhas }: Pr
               </tr>
             </thead>
             <tbody>
-              {linhas.map((l) => (
+              {linhasVisiveis.length === 0 && (
+                <tr>
+                  <td className="rotulo vazio">Nenhuma newsletter neste filtro.</td>
+                  {dias.map((d) => (
+                    <td key={d.data} />
+                  ))}
+                </tr>
+              )}
+              {linhasVisiveis.map((l) => (
                 <tr key={l.newsletterId}>
                   <td className="rotulo">
                     <div className="marca">{l.marca}</div>
