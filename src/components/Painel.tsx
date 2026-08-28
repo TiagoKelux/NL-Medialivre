@@ -1,23 +1,23 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
+import { chavesDe, peso, rotuloDe, TODAS } from "../lib/filtros.ts";
+import type { Periodo, Vista } from "../lib/periodo.ts";
 import { DESIGNACOES, type CodigoEstado, type Periodicidade } from "../lib/tipos.ts";
 
 /**
  * A página (§8): um único quadro, com três níveis de zoom.
  *
- *   Diária   — só hoje, com as horas e a designação por extenso
- *   Semanal  — 6 semanas, agrupadas de 2ª a 6ª
- *   Mensal   — 3 meses, agrupados por mês
+ *   Diária   — um dia, com as horas e a designação por extenso
+ *   Semanal  — uma semana, de 2ª a 6ª
+ *   Mensal   — um mês
  *
- * Recebe tudo já formatado do servidor — não faz contas nem conhece fusos.
- * As três vistas são fatias do mesmo intervalo, para trocar não custar uma
- * ida ao servidor.
+ * A vista e o dia que a ancora vivem no URL, para os botões de navegação
+ * funcionarem e para o Excel se descarregar exatamente do que se está a ver.
+ * O resto — filtro, colunas escondidas — é estado local.
  */
 
-type Vista = "diaria" | "semanal" | "mensal";
-
-/** O que basta para saber a que filtros uma newsletter pertence. */
 interface Cadencia {
   periodicidade: Periodicidade;
   diasSemana: number[] | null;
@@ -61,13 +61,11 @@ export interface LinhaMatriz extends Cadencia {
 
 interface Props {
   hoje: string;
+  periodo: Periodo;
   porConfigurar: string[];
   grelha: LinhaDia[];
   dias: DiaMatriz[];
   linhas: LinhaMatriz[];
-  inicioSemanal: string;
-  nrSemanas: number;
-  nrMeses: number;
 }
 
 interface Selecao {
@@ -75,41 +73,11 @@ interface Selecao {
   detalhe: string;
 }
 
-const TODAS = "todas";
-
-const NOMES_DIAS = ["2ª", "3ª", "4ª", "5ª", "6ª", "Sábado", "Domingo"];
-
-function chavesDe(c: Cadencia): string[] {
-  switch (c.periodicidade) {
-    case "diaria":
-      return ["diaria"];
-    case "dias_uteis":
-      return ["dias_uteis"];
-    case "dia_semana":
-      return (c.diasSemana ?? []).map((d) => `dia:${d}`);
-    case "dia_mes":
-      return ["dia_mes"];
-    case "nao_agendada":
-      return ["nao_agendada"];
-  }
-}
-
-function rotuloDe(chave: string): string {
-  if (chave === "diaria") return "Todos os dias";
-  if (chave === "dias_uteis") return "2ª a 6ª";
-  if (chave === "dia_mes") return "Dia do mês";
-  if (chave === "nao_agendada") return "Sem agenda";
-  return NOMES_DIAS[Number(chave.slice(4)) - 1] ?? chave;
-}
-
-/** Ordem: diárias, dias úteis, 2ª → domingo, depois as que não têm agenda. */
-function peso(chave: string): number {
-  if (chave === "diaria") return 0;
-  if (chave === "dias_uteis") return 1;
-  if (chave === "dia_mes") return 10;
-  if (chave === "nao_agendada") return 11;
-  return 1 + Number(chave.slice(4));
-}
+const NOMES_VISTA: Record<Vista, string> = {
+  diaria: "Diária",
+  semanal: "Semanal",
+  mensal: "Mensal",
+};
 
 function Titulo({ marca, nome }: { marca: string; nome: string }) {
   return (
@@ -129,17 +97,7 @@ function Estado({ codigo }: { codigo: CodigoEstado }) {
   );
 }
 
-export default function Painel({
-  hoje,
-  porConfigurar,
-  grelha,
-  dias,
-  linhas,
-  inicioSemanal,
-  nrSemanas,
-  nrMeses,
-}: Props) {
-  const [vista, setVista] = useState<Vista>("diaria");
+export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, linhas }: Props) {
   const [selecao, setSelecao] = useState<Selecao | null>(null);
   const [ativa, setAtiva] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<string>(TODAS);
@@ -147,6 +105,8 @@ export default function Painel({
   const [mostrarHoras, setMostrarHoras] = useState(false);
   // A semana de trabalho são 5 dias. Sábado e domingo entram a pedido.
   const [comFimDeSemana, setComFimDeSemana] = useState(false);
+
+  const { vista } = periodo;
 
   const filtros = useMemo(() => {
     const contagem = new Map<string, number>();
@@ -162,25 +122,19 @@ export default function Painel({
     ];
   }, [linhas]);
 
-  /**
-   * As colunas visíveis, já agrupadas. Guarda-se o índice original de cada dia
-   * porque as células das linhas continuam na ordem do intervalo completo.
-   */
+  /** As colunas visíveis, agrupadas por semana ou por mês. */
   const grupos = useMemo(() => {
     if (vista === "diaria") return [];
     const blocos: { chave: string; rotulo: string; colunas: { dia: DiaMatriz; i: number }[] }[] = [];
 
     dias.forEach((dia, i) => {
       if (dia.fimDeSemana && !comFimDeSemana) return;
-      if (vista === "semanal" && dia.data < inicioSemanal) return;
-
       const chave = vista === "semanal" ? dia.semana : dia.mes;
       const ultimo = blocos[blocos.length - 1];
       if (ultimo && ultimo.chave === chave) ultimo.colunas.push({ dia, i });
       else blocos.push({ chave, rotulo: dia.mesRotulo, colunas: [{ dia, i }] });
     });
 
-    // A etiqueta da semana é o intervalo; a do mês é o nome.
     return blocos.map((b) =>
       vista === "semanal"
         ? {
@@ -189,7 +143,7 @@ export default function Painel({
           }
         : b,
     );
-  }, [dias, vista, comFimDeSemana, inicioSemanal]);
+  }, [dias, vista, comFimDeSemana]);
 
   const nrColunas = grupos.reduce((t, g) => t + g.colunas.length, 0);
 
@@ -202,17 +156,14 @@ export default function Painel({
     setSelecao({ titulo, detalhe });
   }
 
-  const titulos: Record<Vista, string> = {
-    diaria: `Hoje · ${hoje}`,
-    semanal: `Últimas ${nrSemanas} semanas · ${comFimDeSemana ? 7 : 5} dias por semana`,
-    mensal: `Últimos ${nrMeses} meses`,
-  };
+  const ligacao = (v: Vista, ate: string) => `/?vista=${v}&ate=${ate}`;
+  const urlExcel = `/api/exportar?vista=${vista}&ate=${periodo.ancora}&filtro=${filtro}`;
 
   return (
     <div className="envolucro">
       <header className="topo">
         <h1>Media Livre — Monitor de Newsletters</h1>
-        <p>Estado de {hoje}, lido da caixa de correio de 5 em 5 minutos.</p>
+        <p>Lido da caixa de correio de 5 em 5 minutos.</p>
       </header>
 
       {porConfigurar.length > 0 && (
@@ -252,22 +203,48 @@ export default function Painel({
         <span className="rotulo-filtros">Visão</span>
         <nav className="filtros" aria-label="Nível de detalhe">
           {(["diaria", "semanal", "mensal"] as Vista[]).map((v) => (
-            <button
+            <Link
               key={v}
-              type="button"
+              href={ligacao(v, periodo.ancora)}
               className={`filtro ${vista === v ? "escolhido" : ""}`}
-              aria-pressed={vista === v}
-              onClick={() => setVista(v)}
+              aria-current={vista === v ? "page" : undefined}
             >
-              {v === "diaria" ? "Diária" : v === "semanal" ? "Semanal" : "Mensal"}
-            </button>
+              {NOMES_VISTA[v]}
+            </Link>
           ))}
         </nav>
       </div>
 
       <section>
         <div className="cabeca-seccao">
-          <h2>{titulos[vista]}</h2>
+          <div className="navegacao">
+            <Link
+              className="passo"
+              href={ligacao(vista, periodo.anterior)}
+              aria-label="Período anterior"
+            >
+              ‹
+            </Link>
+            <h2>{periodo.titulo}</h2>
+            {periodo.seguinte ? (
+              <Link
+                className="passo"
+                href={ligacao(vista, periodo.seguinte)}
+                aria-label="Período seguinte"
+              >
+                ›
+              </Link>
+            ) : (
+              <span className="passo inativo" aria-hidden="true">
+                ›
+              </span>
+            )}
+            {!periodo.contemHoje && (
+              <Link className="alternar" href={ligacao(vista, hoje)}>
+                Hoje
+              </Link>
+            )}
+          </div>
 
           <div className="controlos">
             {vista === "diaria" ? (
@@ -289,6 +266,9 @@ export default function Painel({
                 {comFimDeSemana ? "Só dias úteis" : "Incluir fim de semana"}
               </button>
             )}
+            <a className="alternar descarregar" href={urlExcel} download>
+              Descarregar Excel
+            </a>
           </div>
         </div>
 
@@ -308,7 +288,7 @@ export default function Painel({
                 {grelhaVisivel.length === 0 && (
                   <tr>
                     <td colSpan={mostrarHoras ? 5 : 2} className="vazio">
-                      Nenhuma newsletter neste filtro.
+                      Sem registos para este dia neste filtro.
                     </td>
                   </tr>
                 )}
@@ -320,7 +300,9 @@ export default function Painel({
                       className={`clicavel ${l.fechado ? "" : "aberta"} ${
                         ativa === chave ? "selecionada" : ""
                       }`}
-                      onClick={() => escolher(chave, `${l.marca} · ${l.nome} — hoje`, l.detalhe)}
+                      onClick={() =>
+                        escolher(chave, `${l.marca} · ${l.nome} — ${periodo.titulo}`, l.detalhe)
+                      }
                     >
                       <td>
                         <Titulo marca={l.marca} nome={l.nome} />
@@ -431,10 +413,14 @@ export default function Painel({
           <div className="detalhe">
             <div className="cabeca">{selecao.titulo}</div>
             <div className="corpo">{selecao.detalhe}</div>
-            <button type="button" className="fechar" onClick={() => {
-              setSelecao(null);
-              setAtiva(null);
-            }}>
+            <button
+              type="button"
+              className="fechar"
+              onClick={() => {
+                setSelecao(null);
+                setAtiva(null);
+              }}
+            >
               fechar
             </button>
           </div>

@@ -1,16 +1,14 @@
 import { NEWSLETTERS, estaConfigurada } from "../../config/newsletters.ts";
 import { garantirDias, grelhaDoDia, matriz } from "../lib/registos.ts";
+import { calcularPeriodo, diasDoPeriodo, ehVista } from "../lib/periodo.ts";
 import {
   dataLocal,
   diaMes,
   diaSemanaISO,
   horaLocal,
-  intervaloDias,
   nomeMes,
   primeiroDiaDoMes,
   segundaDaSemana,
-  somarDias,
-  somarMeses,
 } from "../lib/tempo.ts";
 import Painel, {
   type CelulaMatriz,
@@ -21,27 +19,33 @@ import Painel, {
 // A página lê o estado atual da base de dados a cada pedido.
 export const dynamic = "force-dynamic";
 
-/** Quanto cada vista abrange. A mensal manda no intervalo que se carrega. */
-const NR_SEMANAS = 6;
-const NR_MESES = 3;
-
 const ABREVIATURAS = ["2ª", "3ª", "4ª", "5ª", "6ª", "Sá", "Do"];
 
-export default function Pagina() {
+/** Quantos dias para trás se garante que existem registos. */
+const HISTORICO = 120;
+
+export default async function Pagina({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
   const hoje = dataLocal();
 
-  // Carrega-se de uma vez o intervalo da vista mais larga; as outras são
-  // fatias dele, para trocar de vista não custar uma ida ao servidor.
-  const inicioSemanal = somarDias(segundaDaSemana(hoje), -7 * (NR_SEMANAS - 1));
-  const inicioMensal = somarMeses(primeiroDiaDoMes(hoje), -(NR_MESES - 1));
-  const inicio = inicioSemanal < inicioMensal ? inicioSemanal : inicioMensal;
-  const todosOsDias = intervaloDias(inicio, hoje);
+  const pedida = typeof params.vista === "string" ? params.vista : null;
+  const vista = ehVista(pedida) ? pedida : "diaria";
+  const ancora = typeof params.ate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(params.ate)
+    ? params.ate
+    : hoje;
 
-  // Sem isto as primeiras colunas apareciam vazias quando o agendador ainda
-  // não tinha corrido para trás.
-  garantirDias(todosOsDias.length);
+  const periodo = calcularPeriodo(vista, ancora, hoje);
+  const dias = diasDoPeriodo(periodo, hoje);
 
-  const grelha: LinhaDia[] = grelhaDoDia(hoje).map((l) => ({
+  // Sem isto, recuar no histórico apanhava colunas vazias.
+  garantirDias(HISTORICO);
+
+  // A vista diária mostra o dia da âncora, não necessariamente hoje.
+  const grelha: LinhaDia[] = grelhaDoDia(periodo.de).map((l) => ({
     newsletterId: l.newsletter_id,
     marca: l.marca,
     nome: l.nome,
@@ -58,16 +62,15 @@ export default function Pagina() {
     diasSemana: l.dias_semana,
   }));
 
-  const m = matriz(todosOsDias);
+  const m = matriz(dias);
 
-  const dias = m.dias.map((d) => {
+  const colunas = m.dias.map((d) => {
     const dow = diaSemanaISO(d);
     return {
       data: d,
       rotulo: diaMes(d),
       abreviatura: ABREVIATURAS[dow - 1],
       fimDeSemana: dow >= 6,
-      // As chaves de agrupamento das duas vistas com colunas.
       semana: segundaDaSemana(d),
       mes: primeiroDiaDoMes(d),
       mesRotulo: nomeMes(d),
@@ -90,14 +93,12 @@ export default function Pagina() {
 
   return (
     <Painel
-      hoje={diaMes(hoje)}
+      hoje={hoje}
+      periodo={periodo}
       porConfigurar={porConfigurar}
       grelha={grelha}
-      dias={dias}
+      dias={colunas}
       linhas={linhas}
-      inicioSemanal={inicioSemanal}
-      nrSemanas={NR_SEMANAS}
-      nrMeses={NR_MESES}
     />
   );
 }

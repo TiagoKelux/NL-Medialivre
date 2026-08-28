@@ -442,3 +442,42 @@ table { width: 100%; border-collapse: collapse; }
   padding: 2px 4px;
 }
 .detalhe .fechar:hover { color: var(--texto); text-decoration: underline; }
+
+/* ── Navegação entre períodos ──────────────────────────────────────────── */
+.navegacao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.navegacao > h2 { margin: 0; min-width: 210px; }
+
+.passo {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  background: var(--papel);
+  color: var(--texto-fraco);
+  font-size: 16px;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.passo:hover { border-color: var(--realce); color: var(--texto); }
+.passo.inativo { opacity: 0.3; cursor: default; }
+.passo.inativo:hover { border-color: var(--borda); color: var(--texto-fraco); }
+
+/* Os filtros de visão são ligações, mas leem-se como pastilhas. */
+a.filtro { text-decoration: none; }
+
+a.alternar { text-decoration: none; display: inline-block; }
+
+.descarregar { border-color: var(--realce); color: var(--texto); }
+.descarregar:hover { background: var(--realce); color: #fff; border-color: var(--realce); }
+
+/* Com poucas colunas, a matriz não deve esticar a coluna do nome até ao fim. */
+.matriz { width: auto; }
+.matriz td.rotulo, .matriz th.rotulo { width: 190px; }

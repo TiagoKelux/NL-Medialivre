@@ -150,26 +150,45 @@ Um único ecrã e um único quadro, sem autenticação.
 **Duas linhas de filtro:**
 
 - **Periodicidade** — Todas, Todos os dias, 2ª a 6ª, um por cada dia da semana,
-  Dia do mês, Sem agenda. São gerados a partir da configuração: quando as
+  Dia do mês, Sem agenda. Gerados a partir da configuração: quando as
   newsletters mudarem, os filtros acompanham.
-- **Visão** — Diária, Semanal, Mensal. Mudam o nível de zoom do mesmo quadro.
+- **Visão** — Diária, Semanal, Mensal.
 
-| Visão | O que mostra |
+| Visão | Mostra | Navega |
+|---|---|---|
+| Diária | Um dia, com o estado por extenso. As horas ficam atrás do `Mostrar horas` | dia a dia |
+| Semanal | Uma semana, 2ª a 6ª | semana a semana |
+| Mensal | Um mês | mês a mês |
+
+Os botões `‹` e `›` andam para trás e para a frente na unidade da vista. O `›`
+desliga-se quando se chega ao presente — não há registos no futuro — e aparece
+um botão `Hoje` quando se está fora dele.
+
+Nas vistas semanal e mensal, `Incluir fim de semana` acrescenta sábado e
+domingo, preciso para as duas newsletters que saem ao fim de semana.
+
+A vista e o dia que a ancora vivem no URL (`/?vista=semanal&ate=2026-08-24`),
+para os botões funcionarem e para a exportação sair exatamente do que se está
+a ver.
+
+Clicar numa linha ou numa célula mostra o campo `detalhe`. A **legenda dos
+códigos está fixa no fundo**, para estar à mão em qualquer ponto do scroll.
+
+## Descarregar para Excel
+
+O botão **Descarregar Excel** dá um `.xlsx` do período e do filtro que estão à
+vista. Três folhas:
+
+| Folha | O que tem |
 |---|---|
-| Diária | Só hoje: newsletter e estado por extenso. As horas (prevista, recebida, atraso) estão atrás do botão `Mostrar horas` |
-| Semanal | 6 semanas, agrupadas por semana, 5 colunas cada (2ª a 6ª), alinhadas à segunda-feira |
-| Mensal | 3 meses, agrupados por mês |
+| Matriz | Newsletters em linhas, dias em colunas, o código na célula — a vista que a equipa reconhece |
+| Registos | Uma linha por newsletter por dia, com horas, atraso, ocorrências e o `detalhe` por extenso. É a folha para filtrar e fazer tabelas dinâmicas |
+| Resumo | Contagem de cada código por newsletter no período |
 
-Nas vistas semanal e mensal, o botão `Incluir fim de semana` acrescenta sábado
-e domingo — é preciso para as duas newsletters que saem ao fim de semana, que
-de outra forma aparecem sempre a 6.
-
-As três vistas são fatias do mesmo intervalo, carregado de uma vez: trocar de
-vista não custa uma ida ao servidor.
-
-Clicar numa linha ou numa célula mostra o campo `detalhe`, que explica a
-classificação por palavras. A **legenda dos códigos está fixa no fundo**, para
-estar à mão em qualquer ponto do scroll.
+O ficheiro é escrito à mão em `src/lib/excel.ts`, sem dependências: um xlsx é
+um zip com XML lá dentro, e o `node:zlib` faz as duas pontas. Evita mais um
+módulo nativo para instalar num Windows sem compilador — o que já custou uma
+vez neste projeto.
 
 ## Produção
 

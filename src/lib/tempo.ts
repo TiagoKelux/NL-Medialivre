@@ -161,3 +161,20 @@ export function somarMeses(data: string, meses: number): string {
 export function nomeMes(data: string): string {
   return NOMES_MESES[Number(data.slice(5, 7)) - 1];
 }
+
+/** O domingo que fecha a semana de um dia local. */
+export function domingoDaSemana(data: string): string {
+  return somarDias(segundaDaSemana(data), 6);
+}
+
+/** "2026-08-15" → "2026-08-31". */
+export function ultimoDiaDoMes(data: string): string {
+  const [ano, mes] = data.split("-").map(Number);
+  return new Date(Date.UTC(ano, mes, 0)).toISOString().slice(0, 10);
+}
+
+/** "2026-08-28" → "28/08/2026". */
+export function dataPorExtenso(data: string): string {
+  const [ano, mes, dia] = data.split("-");
+  return `${dia}/${mes}/${ano}`;
+}
