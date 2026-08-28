@@ -147,6 +147,14 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
 
   const nrColunas = grupos.reduce((t, g) => t + g.colunas.length, 0);
 
+  /**
+   * Quanto espaco cada coluna pode ocupar. Uma semana tem 5 colunas e um mes
+   * tem 20 e tal: em ambos os casos sobra largura, e celulas de 24px deixavam
+   * meia tabela vazia. So acima das 24 colunas e que a matriz volta a apertar
+   * e a rolar na horizontal.
+   */
+  const densidade = nrColunas <= 8 ? "larga" : nrColunas <= 24 ? "media" : "";
+
   const passa = (c: Cadencia) => filtro === TODAS || chavesDe(c).includes(filtro);
   const grelhaVisivel = grelha.filter(passa);
   const linhasVisiveis = linhas.filter(passa);
@@ -327,7 +335,7 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
               </tbody>
             </table>
           ) : (
-            <table className={`matriz ${nrColunas <= 8 ? "larga" : ""}`}>
+            <table className={`matriz ${densidade}`}>
               <thead>
                 <tr>
                   <th className="rotulo" rowSpan={2}>

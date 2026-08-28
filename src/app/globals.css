@@ -512,3 +512,30 @@ a.alternar { text-decoration: none; display: inline-block; }
 .matriz.larga td.rotulo,
 .matriz.larga th.rotulo { width: 240px; }
 .matriz.larga td.rotulo .titulo { font-size: 14px; }
+
+/* Densidade intermédia: um mês de dias úteis são 20 e tal colunas, que ainda
+   cabem à largura sem apertar. */
+.matriz.media { width: 100%; }
+
+.matriz.media th.semana { font-size: 10.5px; padding: 8px 4px 6px; }
+
+.matriz.media th.dia {
+  font-size: 10.5px;
+  padding: 6px 0 7px;
+  min-width: 0;
+}
+.matriz.media th.dia .numero { font-size: 11.5px; }
+
+.matriz.media td { text-align: center; }
+
+.matriz.media .celula {
+  width: 34px;
+  max-width: 34px;
+  height: 32px;
+  margin: 2px auto;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.matriz.media td.rotulo,
+.matriz.media th.rotulo { width: 210px; }
