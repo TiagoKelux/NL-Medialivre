@@ -1,15 +1,36 @@
+/**
+ * Paleta da Media Livre.
+ *
+ * As cores da marca saem do SVG do logo em medialivre.pt:
+ *   #FF00AC magenta · #E509B6 roxo · #3B47FA azul-violeta · #00B7FF ciano
+ *
+ * Usam-se com conta: fundo 100% branco, o título com o azul e o roxo, e o azul
+ * da marca como realce. Tudo o resto é cinzento e linha fina. Isto é um painel
+ * que a equipa vai ter aberto o dia inteiro — o que tem de saltar à vista são
+ * os códigos de estado, não a decoração.
+ *
+ * Sem tema escuro: o branco é uma decisão, não um dos dois modos possíveis.
+ */
 :root {
-  --fundo: #f6f7f9;
+  --marca-magenta: #ff00ac;
+  --marca-roxo: #e509b6;
+  --marca-azul: #3b47fa;
+  --marca-ciano: #00b7ff;
+
+  --fundo: #ffffff;
   --papel: #ffffff;
-  --texto: #16191d;
-  --texto-fraco: #626b78;
-  --borda: #dfe3e8;
-  --realce: #1d4ed8;
+  --texto: #14171c;
+  --texto-fraco: #5c6673;
+  --borda: #e2e5ea;
+  --realce: var(--marca-azul);
+
+  /* Sobre branco puro não há hover possível sem um cinzento de apoio. */
+  --suave: #f4f6f9;
 
   /* §8 — 1 verde · 2 amarelo · 3 laranja · 4 laranja · 5 vermelho · 6 cinzento.
      Sempre com o número ao lado, nunca só a cor. */
   --c1: #15803d;
-  --c2: #b45309;
+  --c2: #a16207;
   --c3: #c2410c;
   --c4: #c2410c;
   --c5: #b91c1c;
@@ -20,32 +41,7 @@
   --c3-fundo: #ffedd5;
   --c4-fundo: #ffedd5;
   --c5-fundo: #fee2e2;
-  --c6-fundo: #eceff3;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --fundo: #0f1216;
-    --papel: #171b21;
-    --texto: #e8eaed;
-    --texto-fraco: #98a2b3;
-    --borda: #2a3038;
-    --realce: #60a5fa;
-
-    --c1: #4ade80;
-    --c2: #fbbf24;
-    --c3: #fb923c;
-    --c4: #fb923c;
-    --c5: #f87171;
-    --c6: #9ca3af;
-
-    --c1-fundo: #14311f;
-    --c2-fundo: #3a2c0a;
-    --c3-fundo: #3b2210;
-    --c4-fundo: #3b2210;
-    --c5-fundo: #3d1717;
-    --c6-fundo: #23272e;
-  }
+  --c6-fundo: #eef1f5;
 }
 
 * { box-sizing: border-box; }
@@ -65,7 +61,24 @@ body {
 }
 
 header.topo { margin-bottom: 26px; }
-header.topo h1 { margin: 0 0 4px; font-size: 21px; letter-spacing: -0.01em; }
+/* O unico sitio com cor de marca: o azul e o roxo do logo, no titulo. */
+header.topo h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--marca-roxo);
+}
+
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  header.topo h1 {
+    background: linear-gradient(95deg, var(--marca-roxo) 0%, var(--marca-azul) 78%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    width: fit-content;
+  }
+}
 header.topo p { margin: 0; color: var(--texto-fraco); font-size: 13.5px; }
 
 section { margin-bottom: 34px; }
@@ -86,16 +99,19 @@ section > h2 {
 }
 
 /* ── Aviso de configuração por preencher ───────────────────────────────── */
+/* Aviso sobrio: uma barra a cor de estado e nao um bloco amarelo inteiro.
+   Tem de se notar, mas fica no ecra o dia todo ate a configuracao existir. */
 .aviso {
-  background: var(--c2-fundo);
-  border: 1px solid var(--c2);
+  background: var(--papel);
+  border: 1px solid var(--borda);
+  border-left: 3px solid var(--c2);
   color: var(--texto);
-  border-radius: 10px;
-  padding: 12px 15px;
+  border-radius: 8px;
+  padding: 11px 15px;
   margin-bottom: 22px;
   font-size: 13.5px;
 }
-.aviso strong { display: block; margin-bottom: 3px; }
+.aviso strong { display: block; margin-bottom: 3px; color: var(--c2); }
 .aviso code {
   background: rgba(127, 127, 127, 0.18);
   padding: 1px 5px;
@@ -123,8 +139,8 @@ table { width: 100%; border-collapse: collapse; }
 }
 .grelha tr:last-child td { border-bottom: none; }
 .grelha tr.clicavel { cursor: pointer; }
-.grelha tr.clicavel:hover td { background: var(--fundo); }
-.grelha tr.selecionada td { background: var(--fundo); }
+.grelha tr.clicavel:hover td { background: var(--suave); }
+.grelha tr.selecionada td { background: var(--suave); }
 
 .titulo {
   display: flex;
@@ -317,7 +333,7 @@ table { width: 100%; border-collapse: collapse; }
 .filtro .conta {
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-  background: var(--fundo);
+  background: var(--suave);
   border-radius: 999px;
   padding: 1px 7px;
   color: var(--texto-fraco);
