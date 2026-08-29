@@ -259,6 +259,7 @@ for (const l of linhas) {
   if (ativa) ativas++;
 
   const remetentes = preservado(id, "remetentes") ?? "[]";
+  const padraoRem = preservado(id, "padraoRemetente") ?? '""';
   const padrao = preservado(id, "padraoAssunto") ?? '""';
 
   const comentario = notas.length
@@ -276,6 +277,7 @@ for (const l of linhas) {
     horaPrevista: ${JSON.stringify(janela.hora ?? "00:00")},
     toleranciaMinutos: ${janela.tolerancia},
     remetentes: ${remetentes},
+    padraoRemetente: ${padraoRem},
     padraoAssunto: ${padrao},
     ativa: ${ativa},
   },`,
@@ -303,9 +305,16 @@ export function newsletterPorId(id: string): Newsletter | undefined {
   return NEWSLETTERS.find((n) => n.id === id);
 }
 
-/** Uma newsletter está configurada quando já sabe reconhecer os seus emails. */
+/**
+ * Uma newsletter está configurada quando já sabe reconhecer os seus emails:
+ * um endereço, e pelo menos um padrão que a distinga das outras que chegam do
+ * mesmo endereço — o nome do remetente ou um pedaço fixo do assunto.
+ */
 export function estaConfigurada(n: Newsletter): boolean {
-  return n.remetentes.length > 0 && n.padraoAssunto.trim() !== "";
+  return (
+    n.remetentes.length > 0 &&
+    (n.padraoRemetente.trim() !== "" || n.padraoAssunto.trim() !== "")
+  );
 }
 `;
 

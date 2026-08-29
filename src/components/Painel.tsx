@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { chavesDe, peso, rotuloDe, TODAS } from "../lib/filtros.ts";
 import type { Periodo, Vista } from "../lib/periodo.ts";
 import { DESIGNACOES, type CodigoEstado, type Periodicidade } from "../lib/tipos.ts";
@@ -33,6 +33,7 @@ export interface LinhaDia extends Cadencia {
   codigo: CodigoEstado;
   detalhe: string;
   fechado: boolean;
+  temConteudo: boolean;
 }
 
 export interface DiaMatriz {
@@ -50,6 +51,24 @@ export interface CelulaMatriz {
   codigo: CodigoEstado;
   detalhe: string;
   fechado: boolean;
+  temConteudo: boolean;
+}
+
+/** O que a rota /api/preview devolve para o cartão de passagem do rato. */
+interface Previsualizacao {
+  marca: string;
+  nome: string;
+  assunto: string;
+  hora: string;
+  artigos: { titulo: string; url: string }[];
+}
+
+interface CartaoAberto {
+  chave: string;
+  x: number;
+  y: number;
+  detalhe: string;
+  dados: Previsualizacao | null;
 }
 
 export interface LinhaMatriz extends Cadencia {
@@ -105,6 +124,7 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
   const [mostrarHoras, setMostrarHoras] = useState(false);
   // A semana de trabalho são 5 dias. Sábado e domingo entram a pedido.
   const [comFimDeSemana, setComFimDeSemana] = useState(false);
+  const [cartao, setCartao] = useState<CartaoAberto | null>(null);
 
   const { vista } = periodo;
 
@@ -163,6 +183,70 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
     setAtiva(chave);
     setSelecao({ titulo, detalhe });
   }
+
+  /**
+   * Passar o rato numa célula com conteúdo abre um cartão com o resumo
+   * executivo da edição; clicar abre a newsletter inteira. O resumo é pedido
+   * só aqui, e guardado em cache — não vem no payload da página.
+   */
+  const cache = useRef(new Map<string, Previsualizacao>());
+  const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function aoEntrar(
+    evento: { currentTarget: HTMLElement },
+    newsletterId: string,
+    data: string,
+    detalhe: string,
+    temConteudo: boolean,
+  ) {
+    if (temporizador.current) clearTimeout(temporizador.current);
+    const caixa = evento.currentTarget.getBoundingClientRect();
+    const chave = `${newsletterId}|${data}`;
+    const x = caixa.left + caixa.width / 2;
+    const y = caixa.bottom;
+
+    // Sem conteúdo o cartão mostra só o detalhe — não vale a pena ir à rede.
+    if (!temConteudo) {
+      temporizador.current = setTimeout(
+        () => setCartao({ chave, x, y, detalhe, dados: null }),
+        180,
+      );
+      return;
+    }
+
+    const guardado = cache.current.get(chave);
+    if (guardado) {
+      temporizador.current = setTimeout(
+        () => setCartao({ chave, x, y, detalhe, dados: guardado }),
+        180,
+      );
+      return;
+    }
+
+    temporizador.current = setTimeout(async () => {
+      setCartao({ chave, x, y, detalhe, dados: null });
+      try {
+        const r = await fetch(
+          `/api/preview?newsletter=${encodeURIComponent(newsletterId)}&data=${data}`,
+        );
+        const corpo = (await r.json()) as Previsualizacao & { vazio?: boolean };
+        if (corpo.vazio) return;
+        cache.current.set(chave, corpo);
+        // Só actualiza se o rato ainda estiver na mesma célula.
+        setCartao((c) => (c && c.chave === chave ? { ...c, dados: corpo } : c));
+      } catch {
+        /* Falhar o resumo não pode partir a página. */
+      }
+    }, 220);
+  }
+
+  function aoSair() {
+    if (temporizador.current) clearTimeout(temporizador.current);
+    setCartao(null);
+  }
+
+  const urlNewsletter = (newsletterId: string, data: string) =>
+    `/api/conteudo?newsletter=${encodeURIComponent(newsletterId)}&data=${data}`;
 
   const ligacao = (v: Vista, ate: string) => `/?vista=${v}&ate=${ate}`;
   const urlExcel = `/api/exportar?vista=${vista}&ate=${periodo.ancora}&filtro=${filtro}`;
@@ -308,9 +392,17 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
                       className={`clicavel ${l.fechado ? "" : "aberta"} ${
                         ativa === chave ? "selecionada" : ""
                       }`}
-                      onClick={() =>
-                        escolher(chave, `${l.marca} · ${l.nome} — ${periodo.titulo}`, l.detalhe)
+                      onMouseEnter={(e) =>
+                        aoEntrar(e, l.newsletterId, periodo.de, l.detalhe, l.temConteudo)
                       }
+                      onMouseLeave={aoSair}
+                      onClick={() => {
+                        if (l.temConteudo) {
+                          window.open(urlNewsletter(l.newsletterId, periodo.de), "_blank");
+                          return;
+                        }
+                        escolher(chave, `${l.marca} · ${l.nome} — ${periodo.titulo}`, l.detalhe);
+                      }}
                     >
                       <td>
                         <Titulo marca={l.marca} nome={l.nome} />
@@ -393,16 +485,28 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
                             <button
                               type="button"
                               className={`celula cod-${c.codigo} ${c.fechado ? "" : "aberta"} ${
-                                ativa === chave ? "ativa" : ""
-                              }`}
-                              title={`${dia.rotulo} — ${DESIGNACOES[c.codigo]}`}
-                              onClick={() =>
+                                c.temConteudo ? "com-conteudo" : ""
+                              } ${ativa === chave ? "ativa" : ""}`}
+                              title={
+                                c.temConteudo
+                                  ? `${dia.rotulo} — ${DESIGNACOES[c.codigo]} · clique para abrir a newsletter`
+                                  : `${dia.rotulo} — ${DESIGNACOES[c.codigo]}`
+                              }
+                              onMouseEnter={(ev) =>
+                                aoEntrar(ev, l.newsletterId, dia.data, c.detalhe, c.temConteudo)
+                              }
+                              onMouseLeave={aoSair}
+                              onClick={() => {
+                                if (c.temConteudo) {
+                                  window.open(urlNewsletter(l.newsletterId, dia.data), "_blank");
+                                  return;
+                                }
                                 escolher(
                                   chave,
                                   `${l.marca} · ${l.nome} — ${dia.rotulo}`,
                                   c.detalhe,
-                                )
-                              }
+                                );
+                              }}
                             >
                               {c.codigo}
                             </button>
@@ -434,6 +538,37 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
           </div>
         )}
       </section>
+
+      {/* O cartão de passagem do rato: o essencial da edição sem sair da
+          matriz. Segue o cursor em coordenadas de ecrã, por isso é `fixed`. */}
+      {cartao && (
+        <div
+          className="cartao-resumo"
+          style={{ left: cartao.x, top: cartao.y + 10 }}
+          role="tooltip"
+        >
+          <div className="linha-detalhe">{cartao.detalhe}</div>
+
+          {cartao.dados ? (
+            <>
+              <div className="cabeca-resumo">
+                {cartao.dados.marca} · {cartao.dados.nome} · {cartao.dados.hora}
+              </div>
+              <div className="assunto">{cartao.dados.assunto}</div>
+              {cartao.dados.artigos.length > 0 && (
+                <ul className="manchetes">
+                  {cartao.dados.artigos.map((a) => (
+                    <li key={a.url}>{a.titulo}</li>
+                  ))}
+                </ul>
+              )}
+              <div className="pe-resumo">Clique para abrir a newsletter</div>
+            </>
+          ) : (
+            <div className="pe-resumo">Sem newsletter guardada para este dia.</div>
+          )}
+        </div>
+      )}
 
       {/* Fixa no fundo: a legenda tem de estar à mão em qualquer ponto do
           scroll, senão com 62 linhas perde-se o significado dos números. */}

@@ -162,15 +162,35 @@ export function fecharVencidos(agora: Date = new Date()): number {
 
 // ── Leituras para a página ─────────────────────────────────────────────────
 
+/**
+ * Que pares newsletter/dia tem um email guardado — ou seja, para quais e que
+ * ha conteudo para mostrar. Uma so consulta para todo o intervalo.
+ */
+function diasComConteudo(de: string, ate: string): Set<string> {
+  const inicio = paraIso(paraInstante(de, "00:00"));
+  const fim = paraIso(paraInstante(somarDias(ate, 1), "00:00"));
+  const linhas = db()
+    .prepare(
+      `SELECT newsletter_id, recebido_em FROM emails
+        WHERE newsletter_id IS NOT NULL AND recebido_em >= ? AND recebido_em < ?`,
+    )
+    .all(inicio, fim) as { newsletter_id: string; recebido_em: string }[];
+
+  const chaves = new Set<string>();
+  for (const l of linhas) chaves.add(`${l.newsletter_id}|${dataLocal(new Date(l.recebido_em))}`);
+  return chaves;
+}
+
 export interface LinhaGrelha extends Registo {
   marca: string;
   nome: string;
   hora_prevista: string;
   periodicidade: Periodicidade;
   dias_semana: number[] | null;
+  tem_conteudo: boolean;
 }
 
-function enriquecer(reg: Registo): LinhaGrelha {
+function enriquecer(reg: Registo, comConteudo: Set<string>): LinhaGrelha {
   const n = newsletterPorId(reg.newsletter_id);
   return {
     ...reg,
@@ -179,6 +199,7 @@ function enriquecer(reg: Registo): LinhaGrelha {
     hora_prevista: n?.horaPrevista ?? "--:--",
     periodicidade: n?.periodicidade ?? "diaria",
     dias_semana: n?.diasSemana ?? null,
+    tem_conteudo: comConteudo.has(`${reg.newsletter_id}|${reg.data_prevista}`),
   };
 }
 
@@ -188,17 +209,19 @@ export function grelhaDoDia(data: string = dataLocal()): LinhaGrelha[] {
     .prepare(`SELECT * FROM registos WHERE data_prevista = ?`)
     .all(data) as Registo[];
 
+  const comConteudo = diasComConteudo(data, data);
   const porId = new Map(registos.map((r) => [r.newsletter_id, r]));
   // A ordem é a do ficheiro de configuração, não a da base de dados.
   return NEWSLETTERS.map((n) => porId.get(n.id))
     .filter((r): r is Registo => r !== undefined)
-    .map(enriquecer);
+    .map((r) => enriquecer(r, comConteudo));
 }
 
 export interface Celula {
   codigo: CodigoEstado;
   detalhe: string;
   fechado: boolean;
+  temConteudo: boolean;
 }
 
 export interface Matriz {
@@ -215,6 +238,8 @@ export function matriz(dias: string[]): Matriz {
   const indice = new Map<string, Registo>();
   for (const r of registos) indice.set(`${r.newsletter_id}|${r.data_prevista}`, r);
 
+  const comConteudo = diasComConteudo(dias[0], dias[dias.length - 1]);
+
   return {
     dias,
     linhas: NEWSLETTERS.map((n) => ({
@@ -222,8 +247,42 @@ export function matriz(dias: string[]): Matriz {
       celulas: dias.map((d) => {
         const r = indice.get(`${n.id}|${d}`);
         if (!r) return null;
-        return { codigo: r.codigo_estado, detalhe: r.detalhe, fechado: r.fechado === 1 };
+        return {
+          codigo: r.codigo_estado,
+          detalhe: r.detalhe,
+          fechado: r.fechado === 1,
+          temConteudo: comConteudo.has(`${n.id}|${d}`),
+        };
       }),
     })),
   };
+}
+
+export interface EmailDoDia {
+  assunto: string;
+  remetente: string;
+  recebido_em: string;
+  corpo_html: string;
+}
+
+/** O email de uma newsletter num dia local. O primeiro, se houver mais do que um. */
+export function emailDoDia(newsletterId: string, data: string): EmailDoDia | null {
+  const inicio = paraIso(paraInstante(data, "00:00"));
+  const fim = paraIso(paraInstante(somarDias(data, 1), "00:00"));
+  const linha = db()
+    .prepare(
+      `SELECT assunto, remetente, recebido_em, corpo_html FROM emails
+        WHERE newsletter_id = ? AND recebido_em >= ? AND recebido_em < ?
+        ORDER BY recebido_em ASC LIMIT 1`,
+    )
+    .get(newsletterId, inicio, fim) as EmailDoDia | undefined;
+  return linha ?? null;
+}
+
+/** O registo de uma newsletter num dia, para o cabeçalho do ficheiro. */
+export function registoDe(newsletterId: string, data: string): Registo | null {
+  const r = db()
+    .prepare(`SELECT * FROM registos WHERE newsletter_id = ? AND data_prevista = ?`)
+    .get(newsletterId, data) as Registo | undefined;
+  return r ?? null;
 }

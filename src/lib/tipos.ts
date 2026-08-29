@@ -51,7 +51,15 @@ export interface Newsletter {
   /** "HH:MM" na hora local de Europe/Lisbon. */
   horaPrevista: string;
   toleranciaMinutos: number;
+  /** Enderecos aceites. Uma entrada que comece por @ vale para o dominio. */
   remetentes: string[];
+  /**
+   * Pedaco do NOME do remetente ("FLASH! Bom dia"). Necessario quando varias
+   * newsletters partilham o mesmo endereco e o assunto e a manchete do dia,
+   * portanto muda sempre. Opcional.
+   */
+  padraoRemetente: string;
+  /** Pedaco fixo do assunto. Opcional. */
   padraoAssunto: string;
   ativa: boolean;
 }

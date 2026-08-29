@@ -60,6 +60,7 @@ export default async function Pagina({
     fechado: l.fechado === 1,
     periodicidade: l.periodicidade,
     diasSemana: l.dias_semana,
+    temConteudo: l.tem_conteudo,
   }));
 
   const m = matriz(dias);
