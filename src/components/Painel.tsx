@@ -65,6 +65,8 @@ interface Previsualizacao {
 
 interface CartaoAberto {
   chave: string;
+  newsletterId: string;
+  data: string;
   x: number;
   /** Distância ao topo ou ao fundo do ecrã, conforme o cartão caiba abaixo. */
   y: number;
@@ -233,7 +235,7 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
 
     const pos = posicionar(evento.currentTarget.getBoundingClientRect());
     const chave = `${newsletterId}|${data}`;
-    const base = { chave, ...pos, detalhe };
+    const base = { chave, newsletterId, data, ...pos, detalhe };
 
     // Sem conteúdo o cartão mostra só o detalhe — não vale a pena ir à rede.
     if (!temConteudo) {
@@ -586,25 +588,39 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
           onMouseEnter={segurarCartao}
           onMouseLeave={aoSair}
         >
-          <div className="linha-detalhe">{cartao.detalhe}</div>
+          {/* Só o corpo rola; o botão fica de fora para estar sempre à vista,
+              senão o acesso directo ficava escondido no fundo do scroll. */}
+          <div className="corpo-resumo">
+            <div className="linha-detalhe">{cartao.detalhe}</div>
 
-          {cartao.dados ? (
-            <>
-              <div className="cabeca-resumo">
-                {cartao.dados.marca} · {cartao.dados.nome} · {cartao.dados.hora}
-              </div>
-              <div className="assunto">{cartao.dados.assunto}</div>
-              {cartao.dados.artigos.length > 0 && (
-                <ul className="manchetes">
-                  {cartao.dados.artigos.map((a) => (
-                    <li key={a.url}>{a.titulo}</li>
-                  ))}
-                </ul>
-              )}
-              <div className="pe-resumo">Clique para abrir a newsletter</div>
-            </>
-          ) : (
-            <div className="pe-resumo">Sem newsletter guardada para este dia.</div>
+            {cartao.dados ? (
+              <>
+                <div className="cabeca-resumo">
+                  {cartao.dados.marca} · {cartao.dados.nome} · {cartao.dados.hora}
+                </div>
+                <div className="assunto">{cartao.dados.assunto}</div>
+                {cartao.dados.artigos.length > 0 && (
+                  <ul className="manchetes">
+                    {cartao.dados.artigos.map((a) => (
+                      <li key={a.url}>{a.titulo}</li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : (
+              <div className="pe-resumo">Sem newsletter guardada para este dia.</div>
+            )}
+          </div>
+
+          {cartao.dados && (
+            <a
+              className="botao-abrir"
+              href={urlNewsletter(cartao.newsletterId, cartao.data)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Abrir newsletter
+            </a>
           )}
         </div>
       )}
