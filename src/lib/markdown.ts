@@ -194,10 +194,15 @@ export interface Cabecalho {
   detalhe: string;
 }
 
-/** O ficheiro final: frontmatter com o contexto, e o conteúdo por baixo. */
+/**
+ * O ficheiro final: frontmatter com o contexto, e o email por baixo.
+ *
+ * Sem lista de manchetes: quem abre o dia quer ler a newsletter, não um índice
+ * do que lá está. O resumo executivo é para o cartão de passagem do rato, que
+ * serve justamente para não ser preciso abrir.
+ */
 export function construirFicheiro(c: Cabecalho, corpoHtml: string): string {
   const escapar = (v: string) => `"${v.replace(/"/g, '\\"')}"`;
-  const artigos = resumoExecutivo(corpoHtml, 10);
 
   const partes = [
     "---",
@@ -220,13 +225,7 @@ export function construirFicheiro(c: Cabecalho, corpoHtml: string): string {
     "",
   ];
 
-  if (artigos.length) {
-    partes.push("## Nesta edição", "");
-    for (const a of artigos) partes.push(`- [${a.titulo}](${a.url})`);
-    partes.push("");
-  }
-
-  partes.push("---", "", "## Conteúdo", "");
+  partes.push("---", "");
 
   return partes.join("\n") + htmlParaMarkdown(corpoHtml) + "\n";
 }

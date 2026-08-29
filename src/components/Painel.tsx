@@ -66,10 +66,17 @@ interface Previsualizacao {
 interface CartaoAberto {
   chave: string;
   x: number;
+  /** Distância ao topo ou ao fundo do ecrã, conforme o cartão caiba abaixo. */
   y: number;
+  acima: boolean;
+  altura: number;
   detalhe: string;
   dados: Previsualizacao | null;
 }
+
+/** Espaço que o cartão precisa por baixo da célula para caber sem cortar. */
+const ALTURA_CARTAO = 300;
+const LARGURA_CARTAO = 360;
 
 export interface LinhaMatriz extends Cadencia {
   newsletterId: string;
@@ -191,6 +198,28 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
    */
   const cache = useRef(new Map<string, Previsualizacao>());
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fecho = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Onde cabe o cartão. Numa lista de 62 linhas a maioria das células está
+   * na metade de baixo do ecrã: abrir sempre para baixo cortava o cartão.
+   */
+  function posicionar(caixa: DOMRect) {
+    // A legenda está fixa no fundo e tapa os últimos ~46px.
+    const espacoAbaixo = window.innerHeight - caixa.bottom - 56;
+    const espacoAcima = caixa.top - 16;
+    const acima = espacoAbaixo < ALTURA_CARTAO && espacoAcima > espacoAbaixo;
+
+    const margem = LARGURA_CARTAO / 2 + 12;
+    return {
+      x: Math.min(Math.max(caixa.left + caixa.width / 2, margem), window.innerWidth - margem),
+      y: acima ? window.innerHeight - caixa.top + 10 : caixa.bottom + 10,
+      acima,
+      // A altura sai do espaço que existe, não de um 60vh que ignora onde a
+      // célula está: com 62 linhas, metade delas fica encostada a um extremo.
+      altura: Math.max(140, Math.min(420, acima ? espacoAcima : espacoAbaixo)),
+    };
+  }
 
   function aoEntrar(
     evento: { currentTarget: HTMLElement },
@@ -200,31 +229,26 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
     temConteudo: boolean,
   ) {
     if (temporizador.current) clearTimeout(temporizador.current);
-    const caixa = evento.currentTarget.getBoundingClientRect();
+    if (fecho.current) clearTimeout(fecho.current);
+
+    const pos = posicionar(evento.currentTarget.getBoundingClientRect());
     const chave = `${newsletterId}|${data}`;
-    const x = caixa.left + caixa.width / 2;
-    const y = caixa.bottom;
+    const base = { chave, ...pos, detalhe };
 
     // Sem conteúdo o cartão mostra só o detalhe — não vale a pena ir à rede.
     if (!temConteudo) {
-      temporizador.current = setTimeout(
-        () => setCartao({ chave, x, y, detalhe, dados: null }),
-        180,
-      );
+      temporizador.current = setTimeout(() => setCartao({ ...base, dados: null }), 180);
       return;
     }
 
     const guardado = cache.current.get(chave);
     if (guardado) {
-      temporizador.current = setTimeout(
-        () => setCartao({ chave, x, y, detalhe, dados: guardado }),
-        180,
-      );
+      temporizador.current = setTimeout(() => setCartao({ ...base, dados: guardado }), 180);
       return;
     }
 
     temporizador.current = setTimeout(async () => {
-      setCartao({ chave, x, y, detalhe, dados: null });
+      setCartao({ ...base, dados: null });
       try {
         const r = await fetch(
           `/api/preview?newsletter=${encodeURIComponent(newsletterId)}&data=${data}`,
@@ -240,9 +264,18 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
     }, 220);
   }
 
+  /**
+   * Fecha com atraso: sem isto, o caminho da célula até ao cartão passa por
+   * fora dos dois e o cartão desaparecia a meio, tornando-o inalcançável.
+   */
   function aoSair() {
     if (temporizador.current) clearTimeout(temporizador.current);
-    setCartao(null);
+    if (fecho.current) clearTimeout(fecho.current);
+    fecho.current = setTimeout(() => setCartao(null), 160);
+  }
+
+  function segurarCartao() {
+    if (fecho.current) clearTimeout(fecho.current);
   }
 
   const urlNewsletter = (newsletterId: string, data: string) =>
@@ -543,9 +576,15 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
           matriz. Segue o cursor em coordenadas de ecrã, por isso é `fixed`. */}
       {cartao && (
         <div
-          className="cartao-resumo"
-          style={{ left: cartao.x, top: cartao.y + 10 }}
+          className={`cartao-resumo ${cartao.acima ? "acima" : ""}`}
+          style={
+            cartao.acima
+              ? { left: cartao.x, bottom: cartao.y, maxHeight: cartao.altura }
+              : { left: cartao.x, top: cartao.y, maxHeight: cartao.altura }
+          }
           role="tooltip"
+          onMouseEnter={segurarCartao}
+          onMouseLeave={aoSair}
         >
           <div className="linha-detalhe">{cartao.detalhe}</div>
 
