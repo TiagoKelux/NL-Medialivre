@@ -49,6 +49,9 @@ export function corresponder(
   assunto: string,
   newsletters: Newsletter[] = NEWSLETTERS,
 ): Newsletter | null {
+  // A confirmação de subscrição sai do mesmo remetente mas não é uma edição.
+  if (/^bem-vind[oa]/i.test(assunto.trim())) return null;
+
   const nome = extrairNome(remetente);
 
   for (const n of newsletters) {

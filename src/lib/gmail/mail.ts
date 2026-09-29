@@ -24,12 +24,6 @@ function cliente(): ImapFlow {
   });
 }
 
-/** "Nome <endereco@x.pt>" → "endereco@x.pt". */
-function endereco(de: string): string {
-  const m = de.match(/<([^>]+)>/);
-  return (m ? m[1] : de).trim().toLowerCase();
-}
-
 async function pastas(c: ImapFlow): Promise<string[]> {
   // O nome da pasta de Spam depende da língua da conta; o atributo \Junk não.
   const lista = await c.list();
@@ -65,7 +59,9 @@ export async function lerCaixa(horas = 24): Promise<MensagemGraph[]> {
           mensagens.push({
             internetMessageId: lido.internetMessageId,
             receivedDateTime: recebido.toISOString(),
-            from: { emailAddress: { address: endereco(lido.remetente) } },
+            // Fica o cabeçalho inteiro, "Nome <endereco>": o nome é o que distingue
+            // newsletters da mesma marca que partilham o endereço.
+            from: { emailAddress: { address: lido.remetente } },
             subject: lido.assunto,
             body: { contentType: "html", content: lido.corpoHtml },
           });

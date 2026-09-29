@@ -27,6 +27,11 @@ export function horaLimiteDe(n: Newsletter, data: string): Date {
  * "ninguém verificou".
  */
 export function gerarDia(data: string = dataLocal()): number {
+  // Antes do início da monitorização não houve caixa a ler: marcar esses dias
+  // como "Não Saiu" seria inventar falhas.
+  const inicio = process.env.MONITOR_INICIO;
+  if (inicio && data < inicio) return 0;
+
   const bd = db();
   const inserir = bd.prepare(`
     INSERT OR IGNORE INTO registos
