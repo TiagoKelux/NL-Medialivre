@@ -48,6 +48,30 @@ export function extrairTexto(html: string): string {
 }
 
 /**
+ * 1b. As imagens como texto: o endereço e o `alt` de cada uma.
+ *
+ * Há newsletters feitas quase só de imagens (capas, banners). Sem isto, o texto
+ * que sobra é o rodapé, igual todos os dias, e cada edição nova sairia como
+ * código 4. Uma edição nova traz quase sempre imagens com endereços novos.
+ *
+ * Os pixels de tracking ficam de fora: mudam a cada envio e fariam com que
+ * nenhuma edição fosse alguma vez igual à anterior.
+ */
+const PIXEL = /\b(width|height)\s*=\s*["']?[01]\b|track|pixel|beacon|\/open\b/i;
+
+export function extrairImagens(html: string): string {
+  const linhas: string[] = [];
+  for (const [tag] of html.matchAll(/<img\b[^>]*>/gi)) {
+    if (PIXEL.test(tag)) continue;
+    const src = (tag.match(/\bsrc\s*=\s*["']([^"']+)["']/i) ?? [])[1] ?? "";
+    const alt = (tag.match(/\balt\s*=\s*["']([^"']*)["']/i) ?? [])[1] ?? "";
+    if (!src && !alt) continue;
+    linhas.push(`[img] ${src.split(/[?#]/)[0]} ${alt}`);
+  }
+  return linhas.join("\n");
+}
+
+/**
  * 2. Remover parâmetros de query de todos os URLs.
  *
  * Depois de tirar as tags, os href de tracking já desapareceram; isto apanha
@@ -88,7 +112,8 @@ function colapsar(texto: string): string {
 }
 
 export function normalizar(html: string): string {
-  return colapsar(removerDatas(limparUrls(extrairTexto(html))));
+  const texto = `${extrairTexto(html)}\n${extrairImagens(html)}`;
+  return colapsar(removerDatas(limparUrls(texto)));
 }
 
 export function hashConteudo(normalizado: string): string {
