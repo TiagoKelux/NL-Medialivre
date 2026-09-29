@@ -1,5 +1,6 @@
 import { fecharVencidos } from "./registos.ts";
 import { temToken } from "./graph/token.ts";
+import { temGmail } from "./gmail/config.ts";
 
 /** O ciclo de 5 em 5 minutos (§6 e §7.3), partilhado pelas rotas. */
 export async function correrCiclo(): Promise<string[]> {
@@ -10,8 +11,8 @@ export async function correrCiclo(): Promise<string[]> {
   const fechados = fecharVencidos();
   if (fechados > 0) passos.push(`${fechados} registo(s) fechado(s)`);
 
-  if (!temToken()) {
-    passos.push("sem token do Graph — leitura da caixa saltada");
+  if (!temGmail() && !temToken()) {
+    passos.push("sem Gmail nem token do Graph — leitura da caixa saltada");
     return passos;
   }
 

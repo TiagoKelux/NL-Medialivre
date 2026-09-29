@@ -5,7 +5,8 @@ const nextConfig = {
    * empacotados:
    *  - `better-sqlite3` é um módulo nativo (e as suas duas dependências);
    *  - `@azure/msal-node` arrasta o `jsonwebtoken`, que faz `require("crypto")`
-   *    à moda antiga e não sobrevive ao empacotador.
+   *    à moda antiga e não sobrevive ao empacotador;
+   *  - `imapflow` para ler o Gmail, que é só código de Node.
    */
   serverExternalPackages: [
     "better-sqlite3",
@@ -15,6 +16,7 @@ const nextConfig = {
     "@azure/msal-node",
     "jsonwebtoken",
     "@microsoft/microsoft-graph-client",
+    "imapflow",
   ],
 };
 

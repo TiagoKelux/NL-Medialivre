@@ -59,8 +59,12 @@ export function reclassificarNaoAtribuidos(): Set<string> {
 export async function recolher(horas = 24): Promise<ResumoRecolha> {
   const bd = db();
   // Carregado só aqui: o MSAL arrasta dependências pesadas que nao devem
-  // entrar no grafo estatico do arranque do Next.
-  const { lerCaixa } = await import("./graph/mail.ts");
+  // entrar no grafo estatico do arranque do Next. O Gmail tem precedência
+  // quando está configurado.
+  const { temGmail } = await import("./gmail/config.ts");
+  const { lerCaixa } = temGmail()
+    ? await import("./gmail/mail.ts")
+    : await import("./graph/mail.ts");
   const mensagens = await lerCaixa(horas);
 
   const inserir = bd.prepare(`

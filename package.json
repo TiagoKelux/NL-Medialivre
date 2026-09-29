@@ -21,6 +21,7 @@
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "better-sqlite3": "^12.11.1",
     "dotenv": "^16.4.7",
+    "imapflow": "^2.1.2",
     "next": "^15.1.6",
     "node-cron": "^3.0.3",
     "react": "^19.0.0",

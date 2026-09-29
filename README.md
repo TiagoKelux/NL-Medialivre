@@ -50,6 +50,24 @@ A app precisa de:
 - **Allow public client flows** ativo — sem isto o fluxo *device code* não
   devolve refresh token.
 
+### Gmail em vez do Graph
+
+Com `GMAIL_USER` e `GMAIL_APP_PASSWORD` preenchidos no `.env`, a caixa lê-se
+por IMAP (caixa de entrada + Spam) e o Graph é ignorado. A palavra-passe de app
+cria-se em https://myaccount.google.com/apppasswords e exige a verificação em
+dois passos ligada na conta.
+
+### Sempre ligado (pm2)
+
+```bash
+npm run build
+pm2 start ecosystem.config.cjs   # http://localhost:3001
+pm2 save
+```
+
+Parar o `npm run dev` antes do build: os dois escrevem em `.next/` e o build
+fica com ficheiros em falta (todas as rotas `/api` devolvem 500).
+
 ## As newsletters
 
 `config/newsletters.ts` é **gerado** a partir da folha "Horário" do Excel:

@@ -4,7 +4,7 @@ module.exports = {
     {
       name: "media-livre-monitor",
       script: "node_modules/next/dist/bin/next",
-      args: "start --port 3000",
+      args: "start --port 3001",
       cwd: __dirname,
       instances: 1,
       // Processo único: os jobs correm dentro deste processo (§9).
@@ -13,7 +13,7 @@ module.exports = {
       max_memory_restart: "400M",
       env: {
         NODE_ENV: "production",
-        PORT: 3000,
+        PORT: 3001,
         TZ: "Europe/Lisbon",
       },
     },
