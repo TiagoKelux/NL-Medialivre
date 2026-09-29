@@ -1,6 +1,7 @@
 import { db } from "./db.ts";
 import { NEWSLETTERS, newsletterPorId } from "../../config/newsletters.ts";
 import { classificar, type EdicaoAnterior, type Ocorrencia } from "./classificacao.ts";
+import { datasNoEmail, fraseData } from "./datas.ts";
 import { dataLocal, paraInstante, paraIso, somarDias, somarMinutos, ultimosDias } from "./tempo.ts";
 import type { CodigoEstado, Newsletter, Periodicidade, Registo } from "./tipos.ts";
 
@@ -86,6 +87,22 @@ function ocorrenciasDoDia(newsletterId: string, data: string): Ocorrencia[] {
   return linhas.map((l) => ({ recebidoEm: new Date(l.recebido_em), hash: l.hash_conteudo }));
 }
 
+/** O primeiro envio do dia, o que conta como a edição. */
+function primeiroEmailDoDia(
+  newsletterId: string,
+  data: string,
+): { assunto: string; corpo_html: string } | undefined {
+  const inicio = paraIso(paraInstante(data, "00:00"));
+  const fim = paraIso(paraInstante(somarDias(data, 1), "00:00"));
+  return db()
+    .prepare(
+      `SELECT assunto, corpo_html FROM emails
+        WHERE newsletter_id = ? AND recebido_em >= ? AND recebido_em < ?
+        ORDER BY recebido_em ASC LIMIT 1`,
+    )
+    .get(newsletterId, inicio, fim) as { assunto: string; corpo_html: string } | undefined;
+}
+
 /** A edição anterior efetivamente recebida, para comparação de conteúdo (§7.4). */
 function edicaoAnteriorDe(newsletterId: string, data: string): EdicaoAnterior | null {
   const inicio = paraIso(paraInstante(data, "00:00"));
@@ -130,6 +147,12 @@ export function reavaliar(newsletterId: string, data: string): Registo | null {
     fechado: existente.fechado === 1,
   });
 
+  // Sinal auxiliar, não mexe no código: a data que o próprio email escreve.
+  const primeiro = r.nrOcorrencias > 0 ? primeiroEmailDoDia(newsletterId, data) : undefined;
+  const detalhe = primeiro
+    ? `${r.detalhe} ${fraseData(datasNoEmail(primeiro.assunto, primeiro.corpo_html, data), data)}`
+    : r.detalhe;
+
   bd.prepare(
     `UPDATE registos
         SET hora_recebida = ?, atraso_minutos = ?, codigo_estado = ?,
@@ -140,7 +163,7 @@ export function reavaliar(newsletterId: string, data: string): Registo | null {
     r.atrasoMinutos,
     r.codigo,
     r.nrOcorrencias,
-    r.detalhe,
+    detalhe,
     existente.id,
   );
 
