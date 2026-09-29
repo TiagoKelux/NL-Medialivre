@@ -150,7 +150,7 @@ export function reavaliar(newsletterId: string, data: string): Registo | null {
   // Sinal auxiliar, não mexe no código: a data que o próprio email escreve.
   const primeiro = r.nrOcorrencias > 0 ? primeiroEmailDoDia(newsletterId, data) : undefined;
   const detalhe = primeiro
-    ? `${r.detalhe} ${fraseData(datasNoEmail(primeiro.assunto, primeiro.corpo_html, data), data)}`
+    ? `${r.detalhe} ${fraseData(datasNoEmail(primeiro.assunto, primeiro.corpo_html, data), data, r.codigo === 4)}`
     : r.detalhe;
 
   bd.prepare(

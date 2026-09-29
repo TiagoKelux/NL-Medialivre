@@ -52,9 +52,18 @@ export function datasNoEmail(assunto: string, html: string, dataRecebido: string
 }
 
 /** A frase que entra no detalhe do registo. */
-export function fraseData(datas: string[], dataRecebido: string): string {
+export function fraseData(
+  datas: string[],
+  dataRecebido: string,
+  conteudoRepetido = false,
+): string {
   if (datas.length === 0) return "Sem data no email.";
-  if (datas.includes(dataRecebido)) return `Data no email: ${diaMes(dataRecebido)} ✓`;
+  if (datas.includes(dataRecebido)) {
+    // A data é a primeira coisa a ser atualizada, mesmo quando o resto não é.
+    return conteudoRepetido
+      ? `⚠ Data no email atualizada (${diaMes(dataRecebido)}), mas o conteúdo é igual ao da edição anterior.`
+      : `Data no email: ${diaMes(dataRecebido)} ✓`;
+  }
 
   // A mais próxima do dia de chegada é a candidata a data da edição.
   const alvo = Date.parse(dataRecebido);
