@@ -1,0 +1,3 @@
+# Os scripts do servidor correm em Linux: fins de linha LF sempre, mesmo
+# quando o repositório é trabalhado em Windows.
+*.sh text eol=lf
