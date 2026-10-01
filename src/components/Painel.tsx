@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { chavesDe, peso, rotuloDe, TODAS } from "../lib/filtros.ts";
+import type { EstadoLeitura } from "../lib/leitura.ts";
 import type { Periodo, Vista } from "../lib/periodo.ts";
 import { DESIGNACOES, type CodigoEstado, type Periodicidade } from "../lib/tipos.ts";
 
@@ -21,7 +22,48 @@ import { DESIGNACOES, type CodigoEstado, type Periodicidade } from "../lib/tipos
 interface Cadencia {
   periodicidade: Periodicidade;
   diasSemana: number[] | null;
+  /**
+   * A newsletter ainda não reconhece os seus emails (sem remetente
+   * configurado). Um "Não Saiu" nela não quer dizer nada — mostra-se a preto.
+   */
+  semEmail: boolean;
+  /** Só para assinantes (coluna "Segmento" do Excel) — leva uma estrela. */
+  paga: boolean;
 }
+
+const SEM_EMAIL = "Não assinada no email";
+const AGUARDA = "A aguardar";
+const POR_CONFIRMAR = "Por confirmar";
+
+/**
+ * Como se mostra um registo, para lá do código:
+ * - "sem-email": a newsletter ainda não reconhece os seus emails — preto;
+ * - "aguarda": registo de hoje ainda antes da hora limite. Na base de dados
+ *   nasce com o código 5, mas "Não Saiu" só é verdade depois de fechar;
+ * - "por-confirmar": a hora limite passou mas ainda não houve uma leitura da
+ *   caixa depois dela (monitor parado, PC desligado, leitura a falhar). Sem
+ *   prova, não se afirma "Não Saiu".
+ * O código 6 (não é dia, desativada) mostra-se sempre como está.
+ */
+type Variante = "sem-email" | "aguarda" | "por-confirmar" | null;
+
+function variante(
+  semEmail: boolean,
+  codigo: CodigoEstado,
+  fechado: boolean,
+  limitePassou: boolean,
+): Variante {
+  if (codigo === 6) return null;
+  if (semEmail) return "sem-email";
+  if (!fechado && codigo === 5) return limitePassou ? "por-confirmar" : "aguarda";
+  return null;
+}
+
+const ROTULO: Record<Exclude<Variante, null>, { digito: string; texto: string }> = {
+  "sem-email": { digito: "–", texto: SEM_EMAIL },
+  aguarda: { digito: "…", texto: AGUARDA },
+  "por-confirmar": { digito: "?", texto: POR_CONFIRMAR },
+};
 
 export interface LinhaDia extends Cadencia {
   newsletterId: string;
@@ -33,6 +75,7 @@ export interface LinhaDia extends Cadencia {
   codigo: CodigoEstado;
   detalhe: string;
   fechado: boolean;
+  limitePassou: boolean;
   temConteudo: boolean;
 }
 
@@ -51,7 +94,14 @@ export interface CelulaMatriz {
   codigo: CodigoEstado;
   detalhe: string;
   fechado: boolean;
+  limitePassou: boolean;
   temConteudo: boolean;
+}
+
+export interface EmailSolto {
+  remetente: string;
+  assunto: string;
+  quando: string;
 }
 
 /** O que a rota /api/preview devolve para o cartão de passagem do rato. */
@@ -89,8 +139,9 @@ export interface LinhaMatriz extends Cadencia {
 
 interface Props {
   hoje: string;
+  leitura: EstadoLeitura;
+  porClassificar: EmailSolto[];
   periodo: Periodo;
-  porConfigurar: string[];
   grelha: LinhaDia[];
   dias: DiaMatriz[];
   linhas: LinhaMatriz[];
@@ -107,16 +158,97 @@ const NOMES_VISTA: Record<Vista, string> = {
   mensal: "Mensal",
 };
 
-function Titulo({ marca, nome }: { marca: string; nome: string }) {
+function Titulo({ marca, nome, paga }: { marca: string; nome: string; paga: boolean }) {
   return (
-    <div className="titulo" title={`${marca} · ${nome}`}>
+    <div className="titulo" title={`${marca} · ${nome}${paga ? " · paga / premium" : ""}`}>
+      {paga && (
+        <span className="estrela" aria-label="paga / premium">
+          ★
+        </span>
+      )}
       <span className="marca">{marca}</span>
       <span className="nome">{nome}</span>
     </div>
   );
 }
 
-function Estado({ codigo }: { codigo: CodigoEstado }) {
+/** Acima disto sem uma leitura boa, alguma coisa parou: o ciclo é de 5 min. */
+const LEITURA_ATRASADA_MIN = 15;
+
+function horaDe(iso: string): string {
+  return new Date(iso).toLocaleTimeString("pt-PT", {
+    timeZone: "Europe/Lisbon",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function ha(minutos: number): string {
+  if (minutos < 1) return "agora mesmo";
+  if (minutos < 60) return `há ${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 48) return `há ${horas} h ${minutos % 60} min`;
+  return `há ${Math.floor(horas / 24)} dias`;
+}
+
+/**
+ * Quando a caixa deixa de ser lida, os registos continuam a fechar como
+ * "Não Saiu". Este aviso é o que permite distinguir as duas coisas. A idade
+ * conta-se no browser, para avisar também quando a própria página ficou parada.
+ */
+function LeituraCaixa({ leitura }: { leitura: EstadoLeitura }) {
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setAgora(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const { ok, falha } = leitura;
+  const minutos = ok ? Math.floor((agora - new Date(ok).getTime()) / 60_000) : null;
+
+  if (falha) {
+    return (
+      <p className="leitura alerta" role="alert">
+        <strong>A leitura da caixa está a falhar desde as {horaDe(falha.em)}</strong> ({falha.erro}).
+        {ok ? ` Última leitura boa às ${horaDe(ok)}, ${ha(minutos!)}.` : ""} Os “Não Saiu” desde
+        então podem ser falsos.
+      </p>
+    );
+  }
+  if (!ok) {
+    return (
+      <p className="leitura alerta" role="alert">
+        <strong>A caixa ainda não foi lida.</strong> Os estados não refletem o que chegou.
+      </p>
+    );
+  }
+  if (minutos! > LEITURA_ATRASADA_MIN) {
+    return (
+      <p className="leitura alerta" role="alert">
+        <strong>
+          Última leitura da caixa às {horaDe(ok)}, {ha(minutos!)}.
+        </strong>{" "}
+        O monitor parou ou a página não foi recarregada — os estados podem não refletir o que já
+        chegou.
+      </p>
+    );
+  }
+  return (
+    <p className="leitura">
+      Caixa lida às {horaDe(ok)} ({ha(minutos!)}) · lê de 5 em 5 minutos, a última semana.
+    </p>
+  );
+}
+
+function Estado({ codigo, variante = null }: { codigo: CodigoEstado; variante?: Variante }) {
+  if (variante) {
+    return (
+      <span className={`estado ${variante}`}>
+        <span className="digito">{ROTULO[variante].digito}</span>
+        <span>{ROTULO[variante].texto}</span>
+      </span>
+    );
+  }
   return (
     <span className={`estado cod-${codigo}`}>
       <span className="digito">{codigo}</span>
@@ -125,7 +257,7 @@ function Estado({ codigo }: { codigo: CodigoEstado }) {
   );
 }
 
-export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, linhas }: Props) {
+export default function Painel({ hoje, leitura, porClassificar, periodo, grelha, dias, linhas }: Props) {
   const [selecao, setSelecao] = useState<Selecao | null>(null);
   const [ativa, setAtiva] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<string>(TODAS);
@@ -290,23 +422,30 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
     <div className="envolucro">
       <header className="topo">
         <h1>Media Livre — Monitor de Newsletters</h1>
-        <p>Lido da caixa de correio de 5 em 5 minutos.</p>
+        <LeituraCaixa leitura={leitura} />
+        {porClassificar.length > 0 && (
+          <details className="soltos">
+            <summary>
+              {porClassificar.length === 1
+                ? "1 email da última semana sem newsletter atribuída"
+                : `${porClassificar.length} emails da última semana sem newsletter atribuída`}
+            </summary>
+            <p>
+              Não são boas-vindas nem promoções conhecidas. Ou é uma newsletter ainda por configurar,
+              ou um remetente que mudou de nome — no segundo caso, a newsletter está a aparecer como
+              “Não Saiu” sem razão.
+            </p>
+            <ul>
+              {porClassificar.map((e, i) => (
+                <li key={i}>
+                  <span className="quando">{e.quando}</span>{" "}
+                  <strong>{e.remetente.split("<")[0].trim() || e.remetente}</strong> — {e.assunto}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
       </header>
-
-      {porConfigurar.length > 0 && (
-        <div className="aviso">
-          <strong>
-            {porConfigurar.length === 1
-              ? "1 newsletter ainda não reconhece os seus emails"
-              : `${porConfigurar.length} newsletters ainda não reconhecem os seus emails`}
-          </strong>
-          Os emails continuam a ser recolhidos e guardados, mas não são
-          classificados até preencheres <code>remetentes</code> e{" "}
-          <code>padraoAssunto</code> em <code>config/newsletters.ts</code>. Corre{" "}
-          <code>npm run listar</code> para descobrir os valores reais.
-          {porConfigurar.length <= 6 && ` — ${porConfigurar.join(", ")}.`}
-        </div>
-      )}
 
       <div className="linha-filtros">
         <span className="rotulo-filtros">Periodicidade</span>
@@ -440,7 +579,7 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
                       }}
                     >
                       <td>
-                        <Titulo marca={l.marca} nome={l.nome} />
+                        <Titulo marca={l.marca} nome={l.nome} paga={l.paga} />
                       </td>
                       {mostrarHoras && <td className="numerico">{l.horaPrevista}</td>}
                       {mostrarHoras && (
@@ -454,7 +593,7 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
                         </td>
                       )}
                       <td>
-                        <Estado codigo={l.codigo} />
+                        <Estado codigo={l.codigo} variante={variante(l.semEmail, l.codigo, l.fechado, l.limitePassou)} />
                       </td>
                     </tr>
                   );
@@ -501,7 +640,7 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
                 {linhasVisiveis.map((l) => (
                   <tr key={l.newsletterId}>
                     <td className="rotulo">
-                      <Titulo marca={l.marca} nome={l.nome} />
+                      <Titulo marca={l.marca} nome={l.nome} paga={l.paga} />
                     </td>
                     {grupos.map((g) =>
                       g.colunas.map(({ dia, i }, j) => {
@@ -515,17 +654,19 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
                             </td>
                           );
                         }
+                        const v = variante(l.semEmail, c.codigo, c.fechado, c.limitePassou);
+                        const designacao = v ? ROTULO[v].texto : DESIGNACOES[c.codigo];
                         return (
                           <td key={chave} className={borda}>
                             <button
                               type="button"
-                              className={`celula cod-${c.codigo} ${c.fechado ? "" : "aberta"} ${
+                              className={`celula ${v ?? `cod-${c.codigo}`} ${c.fechado ? "" : "aberta"} ${
                                 c.temConteudo ? "com-conteudo" : ""
                               } ${ativa === chave ? "ativa" : ""}`}
                               title={
                                 c.temConteudo
-                                  ? `${dia.rotulo} — ${DESIGNACOES[c.codigo]} · clique para abrir a newsletter`
-                                  : `${dia.rotulo} — ${DESIGNACOES[c.codigo]}`
+                                  ? `${dia.rotulo} — ${designacao} · clique para abrir a newsletter`
+                                  : `${dia.rotulo} — ${designacao}`
                               }
                               onMouseEnter={(ev) =>
                                 aoEntrar(ev, l.newsletterId, dia.data, c.detalhe, c.temConteudo)
@@ -543,7 +684,7 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
                                 );
                               }}
                             >
-                              {c.codigo}
+                              {v ? ROTULO[v].digito : c.codigo}
                             </button>
                           </td>
                         );
@@ -631,6 +772,9 @@ export default function Painel({ hoje, periodo, porConfigurar, grelha, dias, lin
         {([1, 2, 3, 4, 5, 6] as CodigoEstado[]).map((c) => (
           <Estado key={c} codigo={c} />
         ))}
+        <Estado codigo={5} variante="aguarda" />
+        <Estado codigo={5} variante="por-confirmar" />
+        <Estado codigo={5} variante="sem-email" />
       </aside>
     </div>
   );

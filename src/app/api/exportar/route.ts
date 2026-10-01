@@ -1,4 +1,4 @@
-import { NEWSLETTERS, newsletterPorId } from "../../../../config/newsletters.ts";
+import { NEWSLETTERS, estaConfigurada, newsletterPorId } from "../../../../config/newsletters.ts";
 import { db } from "../../../lib/db.ts";
 import { construirXlsx, type Valor } from "../../../lib/excel.ts";
 import { calcularPeriodo, diasDoPeriodo, ehVista } from "../../../lib/periodo.ts";
@@ -39,6 +39,23 @@ export function GET(pedido: Request) {
     )
     .all(dias[0], dias[dias.length - 1]) as Registo[];
 
+  // O mesmo que o painel mostra: um 5 ainda em aberto não é "Não Saiu" (está
+  // a aguardar, ou por confirmar se o limite passou sem leitura da caixa), e
+  // uma newsletter que não reconhece os seus emails não pode dar "Não Saiu".
+  // Nesses casos não há código — só o símbolo e a explicação.
+  const agora = new Date();
+  const especial = (r: Registo): { simbolo: string; texto: string } | null => {
+    if (r.codigo_estado === 6) return null;
+    const n = newsletterPorId(r.newsletter_id);
+    if (!n || !estaConfigurada(n)) return { simbolo: "–", texto: "Não assinada no email" };
+    if (r.fechado === 0 && r.codigo_estado === 5) {
+      return new Date(r.hora_limite) <= agora
+        ? { simbolo: "?", texto: "Por confirmar" }
+        : { simbolo: "…", texto: "A aguardar" };
+    }
+    return null;
+  };
+
   const indice = new Map<string, Registo>();
   for (const r of registos) indice.set(`${r.newsletter_id}|${r.data_prevista}`, r);
 
@@ -52,7 +69,11 @@ export function GET(pedido: Request) {
       n.nome,
       n.periodicidade,
       n.horaPrevista,
-      ...dias.map((d) => indice.get(`${n.id}|${d}`)?.codigo_estado ?? null),
+      ...dias.map((d) => {
+        const r = indice.get(`${n.id}|${d}`);
+        if (!r) return null;
+        return especial(r)?.simbolo ?? r.codigo_estado;
+      }),
     ]);
   }
 
@@ -86,8 +107,8 @@ export function GET(pedido: Request) {
       horaLocal(new Date(r.hora_limite)),
       r.hora_recebida ? horaLocal(new Date(r.hora_recebida)) : null,
       r.atraso_minutos,
-      r.codigo_estado,
-      DESIGNACOES[r.codigo_estado as CodigoEstado] ?? "",
+      especial(r) ? null : r.codigo_estado,
+      especial(r)?.texto ?? DESIGNACOES[r.codigo_estado as CodigoEstado] ?? "",
       r.nr_ocorrencias,
       r.fechado === 1 ? "Sim" : "Não",
       r.detalhe,
@@ -102,7 +123,7 @@ export function GET(pedido: Request) {
     const contagem = new Map<number, number>();
     for (const d of dias) {
       const r = indice.get(`${n.id}|${d}`);
-      if (r) contagem.set(r.codigo_estado, (contagem.get(r.codigo_estado) ?? 0) + 1);
+      if (r && !especial(r)) contagem.set(r.codigo_estado, (contagem.get(r.codigo_estado) ?? 0) + 1);
     }
     resumo.push([n.marca, n.nome, ...[1, 2, 3, 4, 5, 6].map((c) => contagem.get(c) ?? 0)]);
   }

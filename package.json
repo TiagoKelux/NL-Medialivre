@@ -14,7 +14,8 @@
     "migrar": "node --env-file=.env scripts/migrar.ts",
     "typecheck": "tsc --noEmit",
     "importar": "node scripts/importar-horario.ts",
-    "email": "node --env-file=.env scripts/importar-email.ts"
+    "email": "node --env-file=.env scripts/importar-email.ts",
+    "test": "node --test \"test/**/*.test.ts\""
   },
   "dependencies": {
     "@azure/msal-node": "^2.16.2",

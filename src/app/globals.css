@@ -27,21 +27,26 @@
   /* Sobre branco puro não há hover possível sem um cinzento de apoio. */
   --suave: #f4f6f9;
 
-  /* §8 — 1 verde · 2 amarelo · 3 laranja · 4 laranja · 5 vermelho · 6 cinzento.
+  /* §8 — 1 verde · 2 amarelo · 3 roxo · 4 laranja · 5 vermelho · 6 cinzento.
+     O 3 e o 4 eram o mesmo laranja; separados para se lerem à distância.
      Sempre com o número ao lado, nunca só a cor. */
-  --c1: #15803d;
-  --c2: #a16207;
-  --c3: #c2410c;
-  --c4: #c2410c;
-  --c5: #b91c1c;
+  --c1: #166534;
+  --c2: #713f12;
+  --c3: #6b21a8;
+  --c4: #9a3412;
+  --c5: #991b1b;
   --c6: #6b7280;
 
-  --c1-fundo: #dcfce7;
-  --c2-fundo: #fef3c7;
-  --c3-fundo: #ffedd5;
-  --c4-fundo: #ffedd5;
-  --c5-fundo: #fee2e2;
+  --c1-fundo: #bbf7d0;
+  --c2-fundo: #fde68a;
+  --c3-fundo: #e9d5ff;
+  --c4-fundo: #fdba74;
+  --c5-fundo: #fca5a5;
   --c6-fundo: #eef1f5;
+
+  /* Newsletter que ainda não reconhece os seus emails: preto. */
+  --sem-email: #ffffff;
+  --sem-email-fundo: #111827;
 }
 
 * { box-sizing: border-box; }
@@ -80,6 +85,24 @@ header.topo h1 {
   }
 }
 header.topo p { margin: 0; color: var(--texto-fraco); font-size: 13.5px; }
+header.topo p.leitura::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 7px;
+  background: var(--c1);
+  vertical-align: 1px;
+}
+header.topo p.leitura.alerta {
+  margin-top: 8px;
+  padding: 9px 13px;
+  border-radius: 8px;
+  background: var(--c5-fundo);
+  color: var(--c5);
+}
+header.topo p.leitura.alerta::before { background: var(--c5); }
 
 section { margin-bottom: 34px; }
 section > h2 {
@@ -98,48 +121,6 @@ section > h2 {
   overflow: hidden;
 }
 
-/* ── Aviso de configuração por preencher ───────────────────────────────── */
-/* Aviso sobrio: uma barra a cor de estado e nao um bloco amarelo inteiro.
-   Tem de se notar, mas fica no ecra o dia todo ate a configuracao existir. */
-.aviso {
-  background: var(--papel);
-  border: 1px solid var(--borda);
-  border-left: 3px solid var(--c2);
-  color: var(--texto);
-  border-radius: 8px;
-  padding: 11px 15px;
-  margin-bottom: 22px;
-  font-size: 13.5px;
-}
-.aviso strong { display: block; margin-bottom: 3px; color: var(--c2); }
-.aviso code {
-  background: rgba(127, 127, 127, 0.18);
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 12.5px;
-}
-
-/* ── Grelha do dia ─────────────────────────────────────────────────────── */
-table { width: 100%; border-collapse: collapse; }
-
-.grelha th {
-  text-align: left;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--texto-fraco);
-  font-weight: 600;
-  padding: 7px 14px;
-  border-bottom: 1px solid var(--borda);
-}
-.grelha td {
-  padding: 6px 14px;
-  border-bottom: 1px solid var(--borda);
-  vertical-align: middle;
-}
-.grelha tr:last-child td { border-bottom: none; }
-.grelha tr.clicavel { cursor: pointer; }
-.grelha tr.clicavel:hover td { background: var(--suave); }
 .grelha tr.selecionada td { background: var(--suave); }
 
 .titulo {
@@ -153,23 +134,8 @@ table { width: 100%; border-collapse: collapse; }
   text-overflow: ellipsis;
 }
 .marca { font-weight: 600; }
+.estrela { color: #d4a017; font-size: 12px; }
 .nome { color: var(--texto-fraco); overflow: hidden; text-overflow: ellipsis; }
-
-/* Linhas por fechar visualmente distintas (§8). */
-.grelha tr.aberta .titulo::after {
-  content: "em aberto";
-  display: inline-block;
-  margin-left: 8px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--texto-fraco);
-  border: 1px dashed var(--borda);
-  border-radius: 999px;
-  padding: 1px 7px;
-  vertical-align: middle;
-}
 
 .numerico { font-variant-numeric: tabular-nums; }
 .vazio { color: var(--texto-fraco); }
@@ -199,6 +165,9 @@ table { width: 100%; border-collapse: collapse; }
 .cod-4 .digito { background: var(--c4-fundo); color: var(--c4); }
 .cod-5 .digito { background: var(--c5-fundo); color: var(--c5); }
 .cod-6 .digito { background: var(--c6-fundo); color: var(--c6); }
+.sem-email .digito { background: var(--sem-email-fundo); color: var(--sem-email); }
+.por-confirmar .digito { background: var(--c2-fundo); color: var(--c2); border: 1px dashed var(--c2); }
+.aguarda .digito { background: var(--papel); color: var(--texto-fraco); border: 1px dashed var(--borda); }
 
 /* ── Matriz de 30 dias ─────────────────────────────────────────────────── */
 .rolagem { overflow-x: auto; }
@@ -274,6 +243,9 @@ table { width: 100%; border-collapse: collapse; }
 .celula.cod-4 { background: var(--c4-fundo); color: var(--c4); }
 .celula.cod-5 { background: var(--c5-fundo); color: var(--c5); }
 .celula.cod-6 { background: var(--c6-fundo); color: var(--c6); }
+.celula.sem-email { background: var(--sem-email-fundo); color: var(--sem-email); }
+.celula.por-confirmar { background: var(--c2-fundo); color: var(--c2); border: 1px dashed var(--c2); }
+.celula.aguarda { background: var(--papel); color: var(--texto-fraco); border-color: var(--borda); }
 
 .celula.ausente {
   color: var(--borda);
@@ -658,3 +630,15 @@ a.alternar { text-decoration: none; display: inline-block; }
   transition: filter 0.12s;
 }
 .cartao-resumo .botao-abrir:hover { filter: brightness(1.12); }
+
+/* ── Emails sem newsletter atribuída ───────────────────────────────────── */
+details.soltos {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--texto-fraco);
+}
+details.soltos summary { cursor: pointer; color: var(--c2); font-weight: 600; }
+details.soltos p { margin: 6px 0; }
+details.soltos ul { margin: 6px 0 0; padding-left: 18px; max-height: 220px; overflow: auto; }
+details.soltos li { margin: 2px 0; }
+details.soltos .quando { font-variant-numeric: tabular-nums; }

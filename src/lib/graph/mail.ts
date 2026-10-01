@@ -22,7 +22,11 @@ async function graph(): Promise<Client> {
   return Client.init({ authProvider: (done) => done(null, token) });
 }
 
-export async function lerCaixa(horas = 24): Promise<MensagemGraph[]> {
+/** `conhecido` existe para igualar o leitor do Gmail; aqui filtra-se no fim. */
+export async function lerCaixa(
+  horas = 24,
+  conhecido?: (internetMessageId: string) => boolean,
+): Promise<MensagemGraph[]> {
   const cliente = await graph();
   const desde = new Date(Date.now() - horas * 3_600_000).toISOString();
 
@@ -41,7 +45,9 @@ export async function lerCaixa(horas = 24): Promise<MensagemGraph[]> {
     resposta = await cliente.api(proxima).get();
   }
 
-  return mensagens;
+  return conhecido
+    ? mensagens.filter((m) => !(m.internetMessageId && conhecido(m.internetMessageId)))
+    : mensagens;
 }
 
 /** Diagnóstico do passo 2 da ordem de implementação: listar sem gravar. */

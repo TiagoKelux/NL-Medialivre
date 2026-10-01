@@ -137,17 +137,25 @@ function extrairHtml(cabecalhos: Map<string, string>, corpo: string): string {
   return alternativa;
 }
 
-export function lerEml(bruto: string): EmailLido {
+/**
+ * `tolerante`: para emails lidos da caixa, onde a hora de chegada vem do
+ * servidor. Não rejeita um Date ilegível nem a falta de Message-ID (devolve-o
+ * vazio e quem chama arranja um identificador). Saltar o email seria pior:
+ * um falso "Não Saiu".
+ */
+export function lerEml(bruto: string, opcoes: { tolerante?: boolean } = {}): EmailLido {
   const { cabecalhos, corpo } = separar(bruto);
 
   const dataBruta = cabecalhos.get("date");
   const data = dataBruta ? new Date(dataBruta) : new Date(NaN);
-  if (Number.isNaN(data.getTime())) {
+  if (Number.isNaN(data.getTime()) && !opcoes.tolerante) {
     throw new Error(`Cabeçalho Date ilegível: ${dataBruta ?? "(ausente)"}`);
   }
 
   const messageId = (cabecalhos.get("message-id") ?? "").replace(/^<|>$/g, "").trim();
-  if (!messageId) throw new Error("Email sem Message-ID; não dá para deduplicar.");
+  if (!messageId && !opcoes.tolerante) {
+    throw new Error("Email sem Message-ID; não dá para deduplicar.");
+  }
 
   return {
     internetMessageId: messageId,

@@ -109,12 +109,20 @@ export function classificar(ctx: Contexto): Resultado {
 
   if (!ehDiaEsperado(n, ctx.dataPrevista)) {
     const dia = NOMES_DIAS[diaSemanaISO(ctx.dataPrevista) - 1];
+    // O código não muda, mas um envio fora do calendário não pode passar em
+    // silêncio: pode ser que o calendário configurado esteja errado.
+    const fora =
+      nrOcorrencias > 0
+        ? ` Atenção: chegou um envio às ${ocorrencias
+            .map((o) => horaLocal(o.recebidoEm))
+            .join(", ")} — fora do calendário configurado.`
+        : "";
     return {
       codigo: 6,
       horaRecebida: null,
       atrasoMinutos: null,
       nrOcorrencias,
-      detalhe: `${dia} não é dia de envio (${descreverPeriodicidade(n)}).`,
+      detalhe: `${dia} não é dia de envio (${descreverPeriodicidade(n)}).${fora}`,
     };
   }
 

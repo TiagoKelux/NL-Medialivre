@@ -1,7 +1,8 @@
 import cron from "node-cron";
 import { NextResponse } from "next/server";
-import { garantirDias, gerarDia } from "../../../lib/registos.ts";
+import { garantirDias, gerarDia, reavaliarRecentes } from "../../../lib/registos.ts";
 import { correrCiclo } from "../../../lib/ciclo.ts";
+import { copiaDiaria } from "../../../lib/copias.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,17 @@ export async function POST() {
     { timezone: fuso },
   );
 
+  // 03h30 — cópia diária da base de dados.
+  cron.schedule(
+    "30 3 * * *",
+    () => {
+      copiaDiaria()
+        .then((f) => registar(`Cópia da base de dados: ${f}`))
+        .catch((erro) => registar(`Falha na cópia da base de dados: ${(erro as Error).message}`));
+    },
+    { timezone: fuso },
+  );
+
   // §6 e §7.3 — de 5 em 5 minutos.
   cron.schedule(
     "*/5 * * * *",
@@ -56,8 +68,11 @@ export async function POST() {
 
   // Arranque: tapar buracos deixados por uma paragem do processo (critério 1).
   const recuperados = garantirDias(45);
+  const recalculados = reavaliarRecentes(45);
   const passos = await correrCiclo().catch((e) => [`falha: ${(e as Error).message}`]);
 
-  registar(`Jobs agendados. Fuso: ${fuso}. Recuperados: ${recuperados}. ${passos.join(" · ")}`);
+  registar(
+    `Jobs agendados. Fuso: ${fuso}. Recuperados: ${recuperados}. Recalculados: ${recalculados}. ${passos.join(" · ")}`,
+  );
   return NextResponse.json({ ok: true, fuso, recuperados, passos });
 }

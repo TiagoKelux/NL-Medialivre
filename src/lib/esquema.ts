@@ -45,6 +45,13 @@ CREATE TABLE IF NOT EXISTS registos (
 CREATE INDEX IF NOT EXISTS idx_registos_data   ON registos (data_prevista);
 CREATE INDEX IF NOT EXISTS idx_registos_abertos ON registos (fechado, hora_limite);
 
+-- Pares chave/valor do funcionamento: a última leitura da caixa que correu
+-- bem e a última que falhou, para o painel avisar quando deixa de ler.
+CREATE TABLE IF NOT EXISTS estado (
+  chave TEXT PRIMARY KEY,
+  valor TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS graph_token (
   id            INTEGER PRIMARY KEY CHECK (id = 1),
   refresh_token TEXT NOT NULL,

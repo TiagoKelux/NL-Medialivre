@@ -2,6 +2,8 @@ import { db } from "./db.ts";
 import { NEWSLETTERS, newsletterPorId } from "../../config/newsletters.ts";
 import { classificar, type EdicaoAnterior, type Ocorrencia } from "./classificacao.ts";
 import { datasNoEmail, fraseData } from "./datas.ts";
+import { dataEdicao, intervaloDeBusca } from "./edicao.ts";
+import { naoEEdicao } from "./correspondencia.ts";
 import { dataLocal, paraInstante, paraIso, somarDias, somarMinutos, ultimosDias } from "./tempo.ts";
 import type { CodigoEstado, Newsletter, Periodicidade, Registo } from "./tipos.ts";
 
@@ -72,50 +74,48 @@ export function garantirDias(nrDias: number = 30): number {
   return criados;
 }
 
-/** Os envios distintos de uma newsletter num dia local. */
-function ocorrenciasDoDia(newsletterId: string, data: string): Ocorrencia[] {
-  const inicio = paraIso(paraInstante(data, "00:00"));
-  const fim = paraIso(paraInstante(somarDias(data, 1), "00:00"));
+interface EmailGuardado {
+  recebido_em: string;
+  hash_conteudo: string;
+  assunto: string;
+  corpo_html: string;
+}
+
+/**
+ * Os emails de uma newsletter que pertencem à edição de um dia, por ordem de
+ * chegada. A pertença é a janela da edição (`dataEdicao`), não o dia do
+ * calendário.
+ */
+function emailsDaEdicao(n: Newsletter, data: string): EmailGuardado[] {
+  const { inicio, fim } = intervaloDeBusca(data);
   const linhas = db()
     .prepare(
-      `SELECT recebido_em, hash_conteudo FROM emails
+      `SELECT recebido_em, hash_conteudo, assunto, corpo_html FROM emails
         WHERE newsletter_id = ? AND recebido_em >= ? AND recebido_em < ?
         ORDER BY recebido_em ASC`,
     )
-    .all(newsletterId, inicio, fim) as { recebido_em: string; hash_conteudo: string }[];
-
-  return linhas.map((l) => ({ recebidoEm: new Date(l.recebido_em), hash: l.hash_conteudo }));
-}
-
-/** O primeiro envio do dia, o que conta como a edição. */
-function primeiroEmailDoDia(
-  newsletterId: string,
-  data: string,
-): { assunto: string; corpo_html: string } | undefined {
-  const inicio = paraIso(paraInstante(data, "00:00"));
-  const fim = paraIso(paraInstante(somarDias(data, 1), "00:00"));
-  return db()
-    .prepare(
-      `SELECT assunto, corpo_html FROM emails
-        WHERE newsletter_id = ? AND recebido_em >= ? AND recebido_em < ?
-        ORDER BY recebido_em ASC LIMIT 1`,
-    )
-    .get(newsletterId, inicio, fim) as { assunto: string; corpo_html: string } | undefined;
+    .all(n.id, paraIso(inicio), paraIso(fim)) as EmailGuardado[];
+  return linhas.filter((l) => dataEdicao(n, new Date(l.recebido_em)) === data);
 }
 
 /** A edição anterior efetivamente recebida, para comparação de conteúdo (§7.4). */
-function edicaoAnteriorDe(newsletterId: string, data: string): EdicaoAnterior | null {
-  const inicio = paraIso(paraInstante(data, "00:00"));
-  const linha = db()
+function edicaoAnteriorDe(n: Newsletter, data: string): EdicaoAnterior | null {
+  // Procura-se para trás a partir do início da janela de busca; o filtro por
+  // `dataEdicao` garante que não se apanha um envio da própria edição.
+  const { fim } = intervaloDeBusca(data);
+  const linhas = db()
     .prepare(
       `SELECT recebido_em, hash_conteudo FROM emails
         WHERE newsletter_id = ? AND recebido_em < ?
-        ORDER BY recebido_em DESC LIMIT 1`,
+        ORDER BY recebido_em DESC LIMIT 20`,
     )
-    .get(newsletterId, inicio) as { recebido_em: string; hash_conteudo: string } | undefined;
+    .all(n.id, paraIso(fim)) as { recebido_em: string; hash_conteudo: string }[];
 
-  if (!linha) return null;
-  return { data: dataLocal(new Date(linha.recebido_em)), hash: linha.hash_conteudo };
+  for (const l of linhas) {
+    const dia = dataEdicao(n, new Date(l.recebido_em));
+    if (dia < data) return { data: dia, hash: l.hash_conteudo };
+  }
+  return null;
 }
 
 /**
@@ -138,27 +138,32 @@ export function reavaliar(newsletterId: string, data: string): Registo | null {
     if (!existente) return null;
   }
 
+  // A hora limite vem sempre da configuração atual: se a hora prevista mudar,
+  // um limite gravado à data da geração ficaria desatualizado.
+  const horaLimite = horaLimiteDe(n, data);
+  const emails = emailsDaEdicao(n, data);
   const r = classificar({
     newsletter: n,
     dataPrevista: data,
-    horaLimite: new Date(existente.hora_limite),
-    ocorrencias: ocorrenciasDoDia(newsletterId, data),
-    edicaoAnterior: edicaoAnteriorDe(newsletterId, data),
+    horaLimite,
+    ocorrencias: emails.map((e) => ({ recebidoEm: new Date(e.recebido_em), hash: e.hash_conteudo })),
+    edicaoAnterior: edicaoAnteriorDe(n, data),
     fechado: existente.fechado === 1,
   });
 
   // Sinal auxiliar, não mexe no código: a data que o próprio email escreve.
-  const primeiro = r.nrOcorrencias > 0 ? primeiroEmailDoDia(newsletterId, data) : undefined;
+  const primeiro = r.nrOcorrencias > 0 ? emails[0] : undefined;
   const detalhe = primeiro
     ? `${r.detalhe} ${fraseData(datasNoEmail(primeiro.assunto, primeiro.corpo_html, data), data, r.codigo === 4)}`
     : r.detalhe;
 
   bd.prepare(
     `UPDATE registos
-        SET hora_recebida = ?, atraso_minutos = ?, codigo_estado = ?,
+        SET hora_limite = ?, hora_recebida = ?, atraso_minutos = ?, codigo_estado = ?,
             nr_ocorrencias = ?, detalhe = ?
       WHERE id = ?`,
   ).run(
+    paraIso(horaLimite),
     r.horaRecebida ? paraIso(r.horaRecebida) : null,
     r.atrasoMinutos,
     r.codigo,
@@ -171,14 +176,29 @@ export function reavaliar(newsletterId: string, data: string): Registo | null {
 }
 
 /**
- * §7.3 — Job de 5 em 5 minutos: fechar os registos cuja hora_limite já passou.
- * Classificação definitiva e `fechado = true`.
+ * Depois da hora limite, quanto tempo esperar por uma leitura antes de dar um
+ * registo como fechado. Cobre o atraso entre o Gmail receber um email e ele
+ * aparecer na pesquisa IMAP.
  */
-export function fecharVencidos(agora: Date = new Date()): number {
+export const MARGEM_FECHO_MIN = 10;
+
+/**
+ * §7.3 — fechar os registos cuja hora limite já passou. Classificação
+ * definitiva e `fechado = true`.
+ *
+ * Só fecha com prova: tem de ter havido uma leitura bem-sucedida da caixa
+ * depois do limite (mais a margem), e essa leitura tem de ter coberto o dia
+ * da edição. Sem isso o registo fica em aberto — o painel mostra-o como "Por
+ * confirmar" — em vez de virar um "Não Saiu" que pode ser só a caixa por ler.
+ */
+export function fecharVencidos(leitura: { ok: Date; desde: Date }): number {
   const bd = db();
-  const vencidos = bd
-    .prepare(`SELECT * FROM registos WHERE fechado = 0 AND hora_limite <= ?`)
-    .all(paraIso(agora)) as Registo[];
+  const ate = somarMinutos(leitura.ok, -MARGEM_FECHO_MIN);
+  const vencidos = (
+    bd
+      .prepare(`SELECT * FROM registos WHERE fechado = 0 AND hora_limite <= ?`)
+      .all(paraIso(ate)) as Registo[]
+  ).filter((reg) => intervaloDeBusca(reg.data_prevista).inicio >= leitura.desde);
 
   for (const reg of vencidos) {
     bd.prepare(`UPDATE registos SET fechado = 1 WHERE id = ?`).run(reg.id);
@@ -195,8 +215,9 @@ export function fecharVencidos(agora: Date = new Date()): number {
  * ha conteudo para mostrar. Uma so consulta para todo o intervalo.
  */
 function diasComConteudo(de: string, ate: string): Set<string> {
-  const inicio = paraIso(paraInstante(de, "00:00"));
-  const fim = paraIso(paraInstante(somarDias(ate, 1), "00:00"));
+  const janela = intervaloDeBusca(de, ate);
+  const inicio = paraIso(janela.inicio);
+  const fim = paraIso(janela.fim);
   const linhas = db()
     .prepare(
       `SELECT newsletter_id, recebido_em FROM emails
@@ -205,7 +226,10 @@ function diasComConteudo(de: string, ate: string): Set<string> {
     .all(inicio, fim) as { newsletter_id: string; recebido_em: string }[];
 
   const chaves = new Set<string>();
-  for (const l of linhas) chaves.add(`${l.newsletter_id}|${dataLocal(new Date(l.recebido_em))}`);
+  for (const l of linhas) {
+    const n = newsletterPorId(l.newsletter_id);
+    if (n) chaves.add(`${l.newsletter_id}|${dataEdicao(n, new Date(l.recebido_em))}`);
+  }
   return chaves;
 }
 
@@ -216,6 +240,13 @@ export interface LinhaGrelha extends Registo {
   periodicidade: Periodicidade;
   dias_semana: number[] | null;
   tem_conteudo: boolean;
+  /** Em aberto com a hora limite já passada: à espera de uma leitura que o confirme. */
+  limite_passou: boolean;
+}
+
+/** Registo por fechar cuja hora limite já passou — ainda sem prova num sentido ou noutro. */
+function limitePassou(reg: Registo, agora: Date): boolean {
+  return reg.fechado === 0 && new Date(reg.hora_limite) <= agora;
 }
 
 function enriquecer(reg: Registo, comConteudo: Set<string>): LinhaGrelha {
@@ -228,6 +259,7 @@ function enriquecer(reg: Registo, comConteudo: Set<string>): LinhaGrelha {
     periodicidade: n?.periodicidade ?? "diaria",
     dias_semana: n?.diasSemana ?? null,
     tem_conteudo: comConteudo.has(`${reg.newsletter_id}|${reg.data_prevista}`),
+    limite_passou: limitePassou(reg, new Date()),
   };
 }
 
@@ -249,6 +281,7 @@ export interface Celula {
   codigo: CodigoEstado;
   detalhe: string;
   fechado: boolean;
+  limitePassou: boolean;
   temConteudo: boolean;
 }
 
@@ -267,6 +300,7 @@ export function matriz(dias: string[]): Matriz {
   for (const r of registos) indice.set(`${r.newsletter_id}|${r.data_prevista}`, r);
 
   const comConteudo = diasComConteudo(dias[0], dias[dias.length - 1]);
+  const agora = new Date();
 
   return {
     dias,
@@ -279,6 +313,7 @@ export function matriz(dias: string[]): Matriz {
           codigo: r.codigo_estado,
           detalhe: r.detalhe,
           fechado: r.fechado === 1,
+          limitePassou: limitePassou(r, agora),
           temConteudo: comConteudo.has(`${n.id}|${d}`),
         };
       }),
@@ -295,16 +330,17 @@ export interface EmailDoDia {
 
 /** O email de uma newsletter num dia local. O primeiro, se houver mais do que um. */
 export function emailDoDia(newsletterId: string, data: string): EmailDoDia | null {
-  const inicio = paraIso(paraInstante(data, "00:00"));
-  const fim = paraIso(paraInstante(somarDias(data, 1), "00:00"));
-  const linha = db()
+  const n = newsletterPorId(newsletterId);
+  if (!n) return null;
+  const { inicio, fim } = intervaloDeBusca(data);
+  const linhas = db()
     .prepare(
       `SELECT assunto, remetente, recebido_em, corpo_html FROM emails
         WHERE newsletter_id = ? AND recebido_em >= ? AND recebido_em < ?
-        ORDER BY recebido_em ASC LIMIT 1`,
+        ORDER BY recebido_em ASC`,
     )
-    .get(newsletterId, inicio, fim) as EmailDoDia | undefined;
-  return linha ?? null;
+    .all(newsletterId, paraIso(inicio), paraIso(fim)) as EmailDoDia[];
+  return linhas.find((l) => dataEdicao(n, new Date(l.recebido_em)) === data) ?? null;
 }
 
 /** O registo de uma newsletter num dia, para o cabeçalho do ficheiro. */
@@ -313,4 +349,44 @@ export function registoDe(newsletterId: string, data: string): Registo | null {
     .prepare(`SELECT * FROM registos WHERE newsletter_id = ? AND data_prevista = ?`)
     .get(newsletterId, data) as Registo | undefined;
   return r ?? null;
+}
+
+export interface EmailPorClassificar {
+  remetente: string;
+  assunto: string;
+  recebido_em: string;
+}
+
+/**
+ * Emails dos últimos dias que não ficaram atribuídos a nenhuma newsletter e
+ * não são boas-vindas nem promoções conhecidas. É a rede de segurança da
+ * identificação: um remetente que mudou de nome, uma newsletter por
+ * configurar ou uma regra ambígua aparecem aqui em vez de passarem em silêncio.
+ */
+export function porClassificar(dias = 7): EmailPorClassificar[] {
+  const desde = new Date(Date.now() - dias * 86_400_000);
+  const linhas = db()
+    .prepare(
+      `SELECT remetente, assunto, recebido_em FROM emails
+        WHERE newsletter_id IS NULL AND recebido_em >= ?
+        ORDER BY recebido_em DESC`,
+    )
+    .all(paraIso(desde)) as EmailPorClassificar[];
+  return linhas.filter((l) => !naoEEdicao(l.assunto));
+}
+
+/**
+ * Recalcula todos os registos dos últimos dias com a configuração e as regras
+ * atuais. Corre no arranque: depois de mudar uma hora prevista, um padrão de
+ * remetente ou a própria lógica, o histórico fica coerente em vez de misturar
+ * classificações feitas com regras diferentes. É idempotente.
+ */
+export function reavaliarRecentes(nrDias: number): number {
+  const desde = ultimosDias(nrDias)[0];
+  const linhas = db()
+    .prepare(`SELECT newsletter_id, data_prevista FROM registos WHERE data_prevista >= ?`)
+    .all(desde) as { newsletter_id: string; data_prevista: string }[];
+  let n = 0;
+  for (const l of linhas) if (reavaliar(l.newsletter_id, l.data_prevista)) n++;
+  return n;
 }

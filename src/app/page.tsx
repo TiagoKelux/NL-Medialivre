@@ -1,5 +1,7 @@
-import { NEWSLETTERS, estaConfigurada } from "../../config/newsletters.ts";
-import { garantirDias, grelhaDoDia, matriz } from "../lib/registos.ts";
+import { estaConfigurada, newsletterPorId } from "../../config/newsletters.ts";
+import { PAGAS } from "../../config/pagas.ts";
+import { estadoLeitura } from "../lib/leitura.ts";
+import { garantirDias, grelhaDoDia, matriz, porClassificar } from "../lib/registos.ts";
 import { calcularPeriodo, diasDoPeriodo, ehVista } from "../lib/periodo.ts";
 import {
   dataLocal,
@@ -45,23 +47,29 @@ export default async function Pagina({
   garantirDias(HISTORICO);
 
   // A vista diária mostra o dia da âncora, não necessariamente hoje.
-  const grelha: LinhaDia[] = grelhaDoDia(periodo.de).map((l) => ({
-    newsletterId: l.newsletter_id,
-    marca: l.marca,
-    nome: l.nome,
-    horaPrevista: l.hora_prevista,
-    horaRecebida: l.hora_recebida ? horaLocal(new Date(l.hora_recebida)) : null,
-    atraso:
-      l.atraso_minutos === null || l.atraso_minutos === 0
-        ? null
-        : `${l.atraso_minutos} min`,
-    codigo: l.codigo_estado,
-    detalhe: l.detalhe,
-    fechado: l.fechado === 1,
-    periodicidade: l.periodicidade,
-    diasSemana: l.dias_semana,
-    temConteudo: l.tem_conteudo,
-  }));
+  const grelha: LinhaDia[] = grelhaDoDia(periodo.de).map((l) => {
+    const n = newsletterPorId(l.newsletter_id);
+    return {
+      newsletterId: l.newsletter_id,
+      semEmail: !n || !estaConfigurada(n),
+      paga: PAGAS.has(l.newsletter_id),
+      marca: l.marca,
+      nome: l.nome,
+      horaPrevista: l.hora_prevista,
+      horaRecebida: l.hora_recebida ? horaLocal(new Date(l.hora_recebida)) : null,
+      atraso:
+        l.atraso_minutos === null || l.atraso_minutos === 0
+          ? null
+          : `${l.atraso_minutos} min`,
+      codigo: l.codigo_estado,
+      detalhe: l.detalhe,
+      fechado: l.fechado === 1,
+      limitePassou: l.limite_passou,
+      periodicidade: l.periodicidade,
+      diasSemana: l.dias_semana,
+      temConteudo: l.tem_conteudo,
+    };
+  });
 
   const m = matriz(dias);
 
@@ -81,6 +89,8 @@ export default async function Pagina({
 
   const linhas: LinhaMatriz[] = m.linhas.map((l) => ({
     newsletterId: l.newsletter.id,
+    semEmail: !estaConfigurada(l.newsletter),
+    paga: PAGAS.has(l.newsletter.id),
     marca: l.newsletter.marca,
     nome: l.newsletter.nome,
     periodicidade: l.newsletter.periodicidade,
@@ -88,15 +98,16 @@ export default async function Pagina({
     celulas: l.celulas as (CelulaMatriz | null)[],
   }));
 
-  const porConfigurar = NEWSLETTERS.filter((n) => !estaConfigurada(n)).map(
-    (n) => `${n.marca} ${n.nome}`,
-  );
-
   return (
     <Painel
       hoje={hoje}
+      leitura={estadoLeitura()}
+      porClassificar={porClassificar().map((e) => ({
+        remetente: e.remetente,
+        assunto: e.assunto,
+        quando: `${diaMes(dataLocal(new Date(e.recebido_em)))} ${horaLocal(new Date(e.recebido_em))}`,
+      }))}
       periodo={periodo}
-      porConfigurar={porConfigurar}
       grelha={grelha}
       dias={colunas}
       linhas={linhas}

@@ -44,22 +44,46 @@ function contem(texto: string, padrao: string): boolean {
   return texto.toLowerCase().includes(padrao.trim().toLowerCase());
 }
 
+/**
+ * A confirmação de subscrição e as promoções saem do mesmo remetente mas não
+ * são edições ("Opinião do dia", "CM Bom dia" e "FLASH! Mundo" mandam-nas com
+ * regularidade). Exportado para o painel não as listar como "por classificar".
+ */
+export function naoEEdicao(assunto: string): boolean {
+  const a = assunto.trim();
+  return (
+    /^bem-vind[oa]/i.test(a) ||
+    /^(queremos garantir que continua connosco|queremos a informação do seu lado|acompanhe as notícias mais recentes)/i.test(a)
+  );
+}
+
+/** Quão específica é a regra: mais texto exigido, menos hipóteses de engano. */
+function especificidade(n: Newsletter): number {
+  return n.padraoRemetente.trim().length + n.padraoAssunto.trim().length;
+}
+
 export function corresponder(
   remetente: string,
   assunto: string,
   newsletters: Newsletter[] = NEWSLETTERS,
 ): Newsletter | null {
-  // A confirmação de subscrição sai do mesmo remetente mas não é uma edição.
-  if (/^bem-vind[oa]/i.test(assunto.trim())) return null;
+  if (naoEEdicao(assunto)) return null;
 
   const nome = extrairNome(remetente);
+  const candidatas = newsletters.filter(
+    (n) =>
+      estaConfigurada(n) &&
+      enderecoBate(remetente, n.remetentes) &&
+      (!n.padraoRemetente || contem(nome, n.padraoRemetente)) &&
+      (!n.padraoAssunto || contem(assunto, n.padraoAssunto)),
+  );
+  if (candidatas.length <= 1) return candidatas[0] ?? null;
 
-  for (const n of newsletters) {
-    if (!estaConfigurada(n)) continue;
-    if (!enderecoBate(remetente, n.remetentes)) continue;
-    if (n.padraoRemetente && !contem(nome, n.padraoRemetente)) continue;
-    if (n.padraoAssunto && !contem(assunto, n.padraoAssunto)) continue;
-    return n;
-  }
-  return null;
+  // Mais do que uma regra serve ("Fecho" e "Dow Jones - Fecho"): ganha a mais
+  // específica. Empate é ambiguidade de configuração — atribuir à primeira da
+  // lista daria crédito à newsletter errada e um falso "Não Saiu" à outra.
+  // Fica por atribuir, e o painel mostra-o em "por classificar".
+  const ordenadas = [...candidatas].sort((a, b) => especificidade(b) - especificidade(a));
+  if (especificidade(ordenadas[0]) === especificidade(ordenadas[1])) return null;
+  return ordenadas[0];
 }

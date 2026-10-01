@@ -2,8 +2,16 @@ import { db } from "./db.ts";
 import type { MensagemGraph } from "./graph/mail.ts";
 import { corresponder } from "./correspondencia.ts";
 import { processarCorpo } from "./conteudo.ts";
-import { reavaliar } from "./registos.ts";
-import { dataLocal, paraIso } from "./tempo.ts";
+import { reavaliar, registoDe } from "./registos.ts";
+import { dataEdicao } from "./edicao.ts";
+import { newsletterPorId } from "../../config/newsletters.ts";
+import { paraIso, somarDias } from "./tempo.ts";
+import type { Newsletter } from "./tipos.ts";
+
+/** Chave do registo a reavaliar: a newsletter e o dia da edição do email. */
+function chave(n: Newsletter, recebido: Date): string {
+  return `${n.id}|${dataEdicao(n, recebido)}`;
+}
 
 /**
  * O passo 3 e 4 da spec: gravar em `emails` com deduplicação e fazer
@@ -29,28 +37,37 @@ function identificador(m: MensagemGraph): string | null {
 }
 
 /**
- * Volta a tentar classificar os emails que ficaram sem newsletter.
+ * Volta a classificar todos os emails gravados com a configuração atual.
  *
- * Enquanto `remetentes` e `padraoAssunto` estiverem por preencher, tudo o que
- * entra fica com `newsletter_id` a null. Quando esses campos forem preenchidos,
- * isto recupera o histórico já gravado em vez de o desperdiçar.
+ * Quando se preenchem `remetentes` e padrões, os emails que ficaram a null
+ * passam a ter newsletter; quando se aperta a regra (uma promoção que passava
+ * por edição), os que estavam mal atribuídos saem. Devolve os pares
+ * newsletter|dia a reavaliar — o de antes e o de depois.
  */
-export function reclassificarNaoAtribuidos(): Set<string> {
+export function reclassificar(): Set<string> {
   const bd = db();
-  const orfaos = bd
-    .prepare(
-      `SELECT id, remetente, assunto, recebido_em FROM emails WHERE newsletter_id IS NULL`,
-    )
-    .all() as { id: number; remetente: string; assunto: string; recebido_em: string }[];
+  const emails = bd
+    .prepare(`SELECT id, remetente, assunto, recebido_em, newsletter_id FROM emails`)
+    .all() as {
+      id: number;
+      remetente: string;
+      assunto: string;
+      recebido_em: string;
+      newsletter_id: string | null;
+    }[];
 
   const atualizar = bd.prepare(`UPDATE emails SET newsletter_id = ? WHERE id = ?`);
   const afetados = new Set<string>();
 
-  for (const e of orfaos) {
-    const n = corresponder(e.remetente, e.assunto);
-    if (!n) continue;
-    atualizar.run(n.id, e.id);
-    afetados.add(`${n.id}|${dataLocal(new Date(e.recebido_em))}`);
+  for (const e of emails) {
+    const novo = corresponder(e.remetente, e.assunto)?.id ?? null;
+    if (novo === e.newsletter_id) continue;
+    atualizar.run(novo, e.id);
+    const recebido = new Date(e.recebido_em);
+    const antiga = e.newsletter_id ? newsletterPorId(e.newsletter_id) : undefined;
+    if (antiga) afetados.add(chave(antiga, recebido));
+    const nova = novo ? newsletterPorId(novo) : undefined;
+    if (nova) afetados.add(chave(nova, recebido));
   }
 
   return afetados;
@@ -65,7 +82,14 @@ export async function recolher(horas = 24): Promise<ResumoRecolha> {
   const { lerCaixa } = temGmail()
     ? await import("./gmail/mail.ts")
     : await import("./graph/mail.ts");
-  const mensagens = await lerCaixa(horas);
+  // Os já gravados nem chegam a ser descarregados; contam como repetidos.
+  const existe = bd.prepare(`SELECT 1 FROM emails WHERE internet_message_id = ?`);
+  let jaGravados = 0;
+  const mensagens = await lerCaixa(horas, (id) => {
+    const sim = existe.get(id) !== undefined;
+    if (sim) jaGravados++;
+    return sim;
+  });
 
   const inserir = bd.prepare(`
     INSERT OR IGNORE INTO emails
@@ -75,9 +99,9 @@ export async function recolher(horas = 24): Promise<ResumoRecolha> {
   `);
 
   const resumo: ResumoRecolha = {
-    vistas: mensagens.length,
+    vistas: mensagens.length + jaGravados,
     novas: 0,
-    repetidas: 0,
+    repetidas: jaGravados,
     atribuidas: 0,
     registosAtualizados: 0,
   };
@@ -118,18 +142,28 @@ export async function recolher(horas = 24): Promise<ResumoRecolha> {
       resumo.novas++;
       if (n) {
         resumo.atribuidas++;
-        afetados.add(`${n.id}|${dataLocal(new Date(m.receivedDateTime))}`);
+        afetados.add(chave(n, new Date(m.receivedDateTime)));
       }
     }
   });
   gravar();
 
-  for (const chave of reclassificarNaoAtribuidos()) afetados.add(chave);
+  for (const c of reclassificar()) afetados.add(c);
 
-  for (const chave of afetados) {
-    const separador = chave.lastIndexOf("|");
-    const newsletterId = chave.slice(0, separador);
-    const data = chave.slice(separador + 1);
+  // Um email novo num dia muda também a comparação de conteúdo da edição
+  // seguinte (o "conteúdo repetido" compara com a anterior). Só se reavalia o
+  // que já existe: não se criam registos de dias futuros.
+  for (const c of [...afetados]) {
+    const separador = c.lastIndexOf("|");
+    const id = c.slice(0, separador);
+    const seguinte = somarDias(c.slice(separador + 1), 1);
+    if (registoDe(id, seguinte)) afetados.add(`${id}|${seguinte}`);
+  }
+
+  for (const c of afetados) {
+    const separador = c.lastIndexOf("|");
+    const newsletterId = c.slice(0, separador);
+    const data = c.slice(separador + 1);
     if (reavaliar(newsletterId, data)) resumo.registosAtualizados++;
   }
 
