@@ -55,6 +55,39 @@ CREATE TABLE IF NOT EXISTS estado (
   valor TEXT NOT NULL
 );
 
+-- Regras de reconhecimento guardadas no painel ("Por classificar"). Somam-se
+-- ao config/newsletters.ts ao carregar (regras-fusao.ts): o ficheiro continua
+-- a ser a base, gerada do Excel, e a aplicação nunca o escreve.
+CREATE TABLE IF NOT EXISTS regras_newsletter (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  newsletter_id TEXT NOT NULL,
+  remetente     TEXT NOT NULL,
+  marca_corpo   TEXT NOT NULL CHECK (length(marca_corpo) >= 10),
+  criado_em     TEXT NOT NULL,
+  UNIQUE (newsletter_id, remetente, marca_corpo)
+);
+
+-- Emails marcados no painel como "não é newsletter": só os tira da lista
+-- "por classificar". Por assunto (normalizado) ou por mensagem exata.
+CREATE TABLE IF NOT EXISTS exclusoes (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  tipo      TEXT NOT NULL CHECK (tipo IN ('assunto', 'mensagem')),
+  valor     TEXT NOT NULL,
+  rotulo    TEXT NOT NULL DEFAULT '',
+  criado_em TEXT NOT NULL,
+  UNIQUE (tipo, valor)
+);
+
+-- Registo de cada alteração feita no painel: quando, quem (se o proxy o
+-- disser) e o quê.
+CREATE TABLE IF NOT EXISTS alteracoes (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  em      TEXT NOT NULL,
+  quem    TEXT          DEFAULT NULL,
+  acao    TEXT NOT NULL,
+  detalhe TEXT NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS graph_token (
   id            INTEGER PRIMARY KEY CHECK (id = 1),
   refresh_token TEXT NOT NULL,

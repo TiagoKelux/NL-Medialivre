@@ -196,6 +196,35 @@ Mostra quantos emails cabem a cada newsletter, os que ficam sem dono, os de
 marketing ignorados e os que serviriam a mais do que uma regra (tem de ser
 zero).
 
+### Pelo painel, sem código: "Por classificar" (`/classificar`)
+
+O topo do painel liga para `/classificar`, onde a equipa trata sozinha os emails
+que não contaram para nenhuma newsletter:
+
+1. **Atribuir** — o email mostra a marca de publicidade que traz
+   (`/4196/<MARCA>_MASTHEAD/NEWSLETTER_<NOME>_LEADERBOARD`, com `/` ou `%2F`).
+   Escolhe-se a newsletter (vem sugerida quando a marca o permite) e grava-se
+   uma regra "endereço do remetente + marca" na tabela `regras_newsletter`.
+   Emails sem marca não se podem atribuir (não há prova de que são edição).
+2. **Não é newsletter** — ignora o assunto (normalizado) ou só aquela
+   mensagem (tabela `exclusoes`). Só tira o email da lista; não mexe em estados.
+3. Tudo se pode desfazer na mesma página, e cada alteração fica em
+   `alteracoes` (quando, utilizador da autenticação do proxy, o quê).
+
+As regras do painel **somam-se** ao `config/newsletters.ts`, que continua a ser
+a base (`src/lib/regras-fusao.ts`, aplicado pelo `db()`): nunca lhe tiram nada.
+Numa newsletter que o ficheiro já reconhece, cada regra é uma alternativa
+(`alternativas`); numa por configurar, a primeira regra passa a ser o critério
+principal. A aplicação nunca escreve no `config/*.ts`.
+
+Uma regra é recusada se algum email guardado passasse a servir a duas
+newsletters, se a marca já identificar outra newsletter, ou se o email não
+trouxer a marca escolhida. Depois de gravar, os emails são reclassificados e os
+registos da newsletter (45 dias) reavaliados — o painel muda logo.
+
+A mesma página mostra, por newsletter ativa, se é reconhecida (ficheiro,
+painel ou ambos) e quando chegou a última edição.
+
 ## Comandos
 
 | Comando | O que faz |

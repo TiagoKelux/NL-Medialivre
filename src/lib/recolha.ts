@@ -151,22 +151,29 @@ export async function recolher(horas = 24): Promise<ResumoRecolha> {
 
   for (const c of reclassificar()) afetados.add(c);
 
-  // Um email novo num dia muda também a comparação de conteúdo da edição
-  // seguinte (o "conteúdo repetido" compara com a anterior). Só se reavalia o
-  // que já existe: não se criam registos de dias futuros.
-  for (const c of [...afetados]) {
+  resumo.registosAtualizados = reavaliarAfetados(afetados);
+  return resumo;
+}
+
+/**
+ * Reavalia os pares `newsletterId|data` afetados. Um email novo num dia muda
+ * também a comparação de conteúdo da edição seguinte (o "conteúdo repetido"
+ * compara com a anterior). Só se reavalia o que já existe: não se criam
+ * registos de dias futuros. Devolve quantos registos foram atualizados.
+ */
+export function reavaliarAfetados(afetados: Iterable<string>): number {
+  const todos = new Set(afetados);
+  for (const c of [...todos]) {
     const separador = c.lastIndexOf("|");
     const id = c.slice(0, separador);
     const seguinte = somarDias(c.slice(separador + 1), 1);
-    if (registoDe(id, seguinte)) afetados.add(`${id}|${seguinte}`);
+    if (registoDe(id, seguinte)) todos.add(`${id}|${seguinte}`);
   }
 
-  for (const c of afetados) {
+  let atualizados = 0;
+  for (const c of todos) {
     const separador = c.lastIndexOf("|");
-    const newsletterId = c.slice(0, separador);
-    const data = c.slice(separador + 1);
-    if (reavaliar(newsletterId, data)) resumo.registosAtualizados++;
+    if (reavaliar(c.slice(0, separador), c.slice(separador + 1))) atualizados++;
   }
-
-  return resumo;
+  return atualizados;
 }
