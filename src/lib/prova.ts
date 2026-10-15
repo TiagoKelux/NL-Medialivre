@@ -2,7 +2,8 @@ import { db } from "./db.ts";
 import { estaConfigurada } from "../../config/newsletters.ts";
 import { PAGAS } from "../../config/pagas.ts";
 import { ehDiaEsperado } from "./classificacao.ts";
-import { extrairEndereco, extrairNome, naoEEdicao } from "./correspondencia.ts";
+import { eNaoEdicaoDoEditor, extrairEndereco, extrairNome, naoEEdicao } from "./correspondencia.ts";
+import { marcasDoEmail, type Marcas } from "./marcas.ts";
 import { dataEdicao, intervaloDeBusca } from "./edicao.ts";
 import { dataLocal, diaMes, horaLocal, paraIso, somarDias } from "./tempo.ts";
 import type { Newsletter } from "./tipos.ts";
@@ -23,9 +24,30 @@ import type { Newsletter } from "./tipos.ts";
  * que a exige, no momento de fechar.
  */
 
-/** Emails de reconquista: o editor avisa que vai deixar de enviar. */
+/**
+ * Emails de reconquista: o editor avisa que vai deixar de enviar.
+ *
+ * A regra principal é estrutural (`eNaoEdicaoDoEditor`): campanha de CRM,
+ * do endereço das edições, sem marca de edição — apanha redações novas
+ * ("O melhor que publicámos ultimamente", "Volte a ler…", "No Record, o jogo
+ * nunca para"…). Este padrão de assunto fica como rede extra, para uma
+ * campanha que mude de molde.
+ */
 const RECONQUISTA =
   /queremos garantir que continua connosco|not[aá]mos que h[aá] algum tempo|sentimos a sua falta/i;
+
+/**
+ * As boas-vindas têm a mesma estrutura de CRM, mas dizem o contrário: a caixa
+ * acabou de se inscrever. Não contam como reconquista.
+ */
+const BOAS_VINDAS = /^\s*bem-vind[oa]/i;
+
+/** O email guardado é uma campanha de reconquista do editor? */
+export function eReconquista(remetente: string, assunto: string, marcas: Marcas | null): boolean {
+  if (RECONQUISTA.test(assunto)) return true;
+  if (BOAS_VINDAS.test(assunto) || !marcas) return false;
+  return eNaoEdicaoDoEditor(marcas, remetente);
+}
 
 /** Edições seguidas sem nada a partir das quais o silêncio deixa de ser prova. */
 function maximoSeguidas(n: Newsletter): number {
@@ -90,10 +112,14 @@ function temPalavras(texto: string, frase: string): boolean {
  * O contrário também acontece: num endereço partilhado por várias newsletters
  * (info@news.correiodamanha.pt), um email por atribuir trava o 5 de todas as
  * que o usam, nessa janela, até a regra ser afinada. As boas-vindas e
- * promoções conhecidas (`naoEEdicao`) nunca contam.
+ * promoções conhecidas (`naoEEdicao`) nunca contam, nem o marketing do editor
+ * reconhecido pela estrutura (`eNaoEdicaoDoEditor`), quando há `marcas`.
  */
-export function podeSerDe(n: Newsletter, remetente: string, assunto: string): boolean {
+export function podeSerDe(n: Newsletter, remetente: string, assunto: string, marcas?: Marcas): boolean {
   if (naoEEdicao(assunto) || RECONQUISTA.test(assunto)) return false;
+  // Marketing do editor reconhecido pela estrutura também não é edição (e,
+  // se for reconquista, já trava o 5 pela regra 5, com o motivo certo).
+  if (marcas && eNaoEdicaoDoEditor(marcas, remetente)) return false;
   const endereco = extrairEndereco(remetente);
   const exato = n.remetentes.some((r) => {
     const alvo = r.trim().toLowerCase();
@@ -103,6 +129,15 @@ export function podeSerDe(n: Newsletter, remetente: string, assunto: string): bo
   const texto = palavras(`${extrairNome(remetente)} ${assunto}`);
   if (n.padraoRemetente.trim() && temPalavras(texto, n.padraoRemetente)) return true;
   return temPalavras(texto, n.marca) && temPalavras(texto, n.nome);
+}
+
+/** Um email guardado, sem o corpo: as marcas chegam para decidir. */
+interface EmailLeve {
+  id: number;
+  remetente: string;
+  assunto: string;
+  recebido_em: string;
+  marcas: string | null;
 }
 
 /** Houve algum email desta newsletter na edição deste dia? */
@@ -129,9 +164,9 @@ function temEdicao(n: Newsletter, data: string): boolean {
  *   4. um canário: outro email do mesmo remetente (endereço ou domínio)
  *      chegou depois do limite, até 24 h — a caixa estava a receber daquele
  *      editor quando esta devia ter chegado;
- *   5. nenhum email de reconquista ("Queremos garantir que continua
- *      connosco") do mesmo domínio nos 30 dias anteriores — o editor avisou
- *      que ia deixar de enviar;
+ *   5. nenhum email de reconquista do mesmo domínio nos 30 dias anteriores
+ *      — o editor avisou que ia deixar de enviar. Reconhecido pela estrutura
+ *      (`eReconquista`), não só pelo assunto;
  *   6. menos de 3 edições seguidas em falta (2 nas semanais e mensais) —
  *      silêncio prolongado é mais provavelmente a caixa cortada do que a
  *      newsletter parada, e não se distingue.
@@ -170,13 +205,15 @@ export function motivosSemProva(n: Newsletter, data: string, horaLimite: Date): 
   const soltos = (
     bd
       .prepare(
-        `SELECT remetente, assunto, recebido_em FROM emails
+        `SELECT id, remetente, assunto, recebido_em, marcas FROM emails INDEXED BY idx_emails_identificacao
           WHERE newsletter_id IS NULL AND recebido_em >= ? AND recebido_em < ?
           ORDER BY recebido_em ASC`,
       )
-      .all(paraIso(inicio), paraIso(fim)) as { remetente: string; assunto: string; recebido_em: string }[]
+      .all(paraIso(inicio), paraIso(fim)) as EmailLeve[]
   ).filter(
-    (e) => dataEdicao(n, new Date(e.recebido_em)) === data && podeSerDe(n, e.remetente, e.assunto),
+    (e) =>
+      dataEdicao(n, new Date(e.recebido_em)) === data &&
+      podeSerDe(n, e.remetente, e.assunto, marcasDoEmail(e.id, e.marcas)),
   );
   if (soltos.length > 0) {
     const e = soltos[0];
@@ -191,7 +228,7 @@ export function motivosSemProva(n: Newsletter, data: string, horaLimite: Date): 
     const ate = new Date(horaLimite.getTime() + HORAS_CANARIO * 3_600_000);
     const depois = bd
       .prepare(
-        `SELECT remetente FROM emails
+        `SELECT remetente FROM emails INDEXED BY idx_emails_identificacao
           WHERE (newsletter_id IS NULL OR newsletter_id <> ?) AND recebido_em > ? AND recebido_em <= ?`,
       )
       .all(n.id, paraIso(horaLimite), paraIso(ate)) as { remetente: string }[];
@@ -207,11 +244,15 @@ export function motivosSemProva(n: Newsletter, data: string, horaLimite: Date): 
     const avisos = (
       bd
         .prepare(
-          `SELECT remetente, assunto, recebido_em FROM emails
+          `SELECT id, remetente, assunto, recebido_em, marcas FROM emails INDEXED BY idx_emails_identificacao
             WHERE recebido_em >= ? AND recebido_em <= ? ORDER BY recebido_em DESC`,
         )
-        .all(paraIso(desde), paraIso(horaLimite)) as { remetente: string; assunto: string; recebido_em: string }[]
-    ).filter((e) => RECONQUISTA.test(e.assunto) && mesmoRemetente(n, e.remetente));
+        .all(paraIso(desde), paraIso(horaLimite)) as EmailLeve[]
+    ).filter(
+      (e) =>
+        mesmoRemetente(n, e.remetente) &&
+        eReconquista(e.remetente, e.assunto, marcasDoEmail(e.id, e.marcas)),
+    );
     if (avisos.length > 0) {
       const e = avisos[0];
       motivos.push(

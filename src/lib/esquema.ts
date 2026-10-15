@@ -19,7 +19,10 @@ CREATE TABLE IF NOT EXISTS emails (
   corpo_html          TEXT    NOT NULL DEFAULT '',
   corpo_normalizado   TEXT    NOT NULL DEFAULT '',
   hash_conteudo       TEXT    NOT NULL DEFAULT '',
-  newsletter_id       TEXT             DEFAULT NULL
+  newsletter_id       TEXT             DEFAULT NULL,
+  -- JSON com o que a identificação precisa do corpo, extraído à entrada
+  -- (marcas.ts). Em bases antigas é acrescentada pelo db.ts.
+  marcas              TEXT             DEFAULT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_emails_newsletter ON emails (newsletter_id, recebido_em);

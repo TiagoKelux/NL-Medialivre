@@ -49,8 +49,16 @@ não tiver remetente, com o detalhe a dizer porquê. A prova exige
    conta, para o marketing de assinaturas não travar as gratuitas da marca;
 5. um **canário**: outro email do mesmo remetente (endereço ou domínio)
    chegou nas 24 h depois do limite;
-6. nenhum email de reconquista ("Queremos garantir que continua connosco",
-   "Notámos que há algum tempo…") do mesmo domínio nos 30 dias anteriores;
+6. nenhum email de reconquista do mesmo domínio nos 30 dias anteriores. É
+   reconhecido pela **estrutura**, não pela redação do assunto
+   (`eNaoEdicaoDoEditor`, em `correspondencia.ts`): vem de um endereço de
+   edições, não traz marca de edição (nem o bloco `/4196/…_LEADERBOARD`, nem a
+   `marcaCorpo` de nenhuma newsletter desse endereço), foi feito no editor de
+   campanhas (imagens em `assets.unlayer.com`) e tem menos de 2 000
+   caracteres de texto. As boas-vindas ("Bem-vindo(a)…") têm o mesmo molde e
+   não contam; os assuntos antigos ("Queremos garantir que continua
+   connosco", "Notámos que há algum tempo…") continuam a contar como rede
+   extra;
 7. menos de 3 edições seguidas em falta (2 nas semanais e mensais).
 
 As pagas (`config/pagas.ts`) estão isentas de 2 a 7: a caixa não está inscrita
@@ -61,6 +69,41 @@ Um 1 sem edição anterior comparável mostra-se como **Saiu (sem termo de
 comparação)** (ressalva `sem-comparacao`): chegou, mas "conteúdo atualizado"
 não está provado. As ressalvas vivem na coluna `registos.ressalva`; o
 `codigo_estado` e o seu CHECK não mudam.
+
+### Caixa cortada
+
+Os editores deixam de mandar as diárias a caixas que nunca abrem os emails.
+A leitura continua a correr bem, por isso isto não se vê na saúde da leitura.
+`src/lib/caixa.ts` mede, por domínio do editor (só gratuitas, ativas, com
+remetente), a última edição recebida e quantos dias esperados de uma diária
+(diária ou dias úteis, com o limite já passado) passaram sem **nenhuma**
+diária desse domínio. Com 2 ou mais, o domínio entra em `caixaCortada`:
+
+```json
+"caixaCortada": [{ "dominio": "news.jornalrecord.pt", "desde": "2026-10-06",
+                   "ultimaEdicao": "2026-10-05T10:05:48.000Z", "diasEsperadosSemEdicao": 10 }]
+```
+
+Vem no `/api/saude` (campos `caixa` e `caixaCortada`) **sem mexer no
+200/503**, que continua a depender só da leitura — é disso que a verificação
+externa precisa. O ciclo escreve no log uma linha `CAIXA CORTADA …` quando a
+lista muda (e `Caixa normalizada` quando esvazia), sem serviços externos.
+Um domínio de que nunca chegou nenhuma diária não conta: não há prova de que
+a caixa estivesse inscrita.
+
+### Marcas guardadas à entrada
+
+A identificação precisa de meia dúzia de coisas do corpo (as `marcaCorpo`
+que traz, o bloco de publicidade, as imagens do editor de campanhas, o
+tamanho do texto). São extraídas uma vez, à entrada, para a coluna
+`emails.marcas` (`src/lib/marcas.ts`), e a reclassificação de 5 em 5 minutos
+usa-as em vez de reler o `corpo_html` de todos os emails. Bases antigas são
+preenchidas no arranque e no ciclo (`garantirMarcas`, idempotente). As marcas
+levam a impressão digital das `marcaCorpo` configuradas: mudar uma marca em
+`config/newsletters.ts` faz com que sejam extraídas outra vez, uma vez — o
+resultado é sempre o mesmo que procurar no HTML. Um índice de cobertura
+(`idx_emails_identificacao`) evita que a leitura atravesse as páginas de
+overflow dos corpos.
 
 ## Arrancar
 
@@ -220,7 +263,11 @@ src/lib/
   esquema.ts              o SQL das três tabelas
   db.ts                   ligação SQLite
   conteudo.ts             normalização do corpo e hash (§7.4)
-  correspondencia.ts      email → newsletter (§6)
+  correspondencia.ts      email → newsletter (§6); marketing do editor pela estrutura
+  marcas.ts               marcas do corpo extraídas à entrada (emails.marcas)
+  prova.ts                prova de ausência (quando "nada chegou" é "Não Saiu")
+  caixa.ts                caixa cortada pelo editor (dias sem diárias por domínio)
+  saude.ts                o que o /api/saude devolve
   classificacao.ts        o motor de estados, função pura (§4, §7)
   registos.ts             gerar o dia, reavaliar, fechar, ler para a página
   recolha.ts              gravar emails com deduplicação (§6)

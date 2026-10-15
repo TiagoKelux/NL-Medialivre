@@ -5,7 +5,7 @@ import { temToken } from "./graph/token.ts";
 import { temGmail } from "./gmail/config.ts";
 import { coberturaDesde, registarLeitura } from "./leitura.ts";
 import { dataLocal } from "./tempo.ts";
-import { sinalDeVida } from "./vigia.ts";
+import { sinalDeVida, vigiarCaixa } from "./vigia.ts";
 
 /**
  * Janela mínima de cada leitura: uma semana. Uma paragem do PC mais curta do
@@ -107,6 +107,9 @@ async function ciclo(): Promise<string[]> {
     desde: coberta > limiteAntigo ? coberta : limiteAntigo,
   });
   if (fechados > 0) passos.unshift(`${fechados} registo(s) fechado(s)`);
+
+  // Os editores ainda mandam as diárias? Escreve no log só quando muda.
+  await vigiarCaixa();
 
   return passos;
 }

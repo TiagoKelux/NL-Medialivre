@@ -12,6 +12,7 @@ import { db } from "../src/lib/db.ts";
 import { lerEml } from "../src/lib/eml.ts";
 import { corresponder, extrairEndereco, extrairNome } from "../src/lib/correspondencia.ts";
 import { processarCorpo } from "../src/lib/conteudo.ts";
+import { extrairMarcas } from "../src/lib/marcas.ts";
 import { reavaliar } from "../src/lib/registos.ts";
 import { dataLocal, horaLocal, paraIso } from "../src/lib/tempo.ts";
 
@@ -32,7 +33,8 @@ console.log(`  Assunto   : ${email.assunto}`);
 console.log(`  Recebido  : ${dia} às ${horaLocal(email.data)} (hora de Lisboa)`);
 console.log(`  Corpo     : ${email.corpoHtml.length} caracteres de HTML`);
 
-const n = corresponder(email.remetente, email.assunto, email.corpoHtml);
+const marcas = extrairMarcas(email.corpoHtml);
+const n = corresponder(email.remetente, email.assunto, marcas);
 if (!n) {
   console.log("\nNenhuma newsletter configurada reconhece este email.");
   console.log("Preenche `remetentes` e `marcaCorpo` (ou `padraoRemetente`/`padraoAssunto`) em config/newsletters.ts.");
@@ -44,8 +46,8 @@ const res = db()
   .prepare(
     `INSERT OR IGNORE INTO emails
        (internet_message_id, remetente, assunto, recebido_em,
-        corpo_html, corpo_normalizado, hash_conteudo, newsletter_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        corpo_html, corpo_normalizado, hash_conteudo, newsletter_id, marcas)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
   .run(
     email.internetMessageId,
@@ -56,6 +58,7 @@ const res = db()
     normalizado,
     hash,
     n?.id ?? null,
+    JSON.stringify(marcas),
   );
 
 console.log(res.changes === 0 ? "\nJá estava gravado (mesmo Message-ID)." : "\nGravado.");
