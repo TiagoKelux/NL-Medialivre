@@ -1,7 +1,8 @@
 import { estaConfigurada, newsletterPorId } from "../../config/newsletters.ts";
 import { PAGAS } from "../../config/pagas.ts";
 import { estadoLeitura } from "../lib/leitura.ts";
-import { garantirDias, grelhaDoDia, matriz, porClassificar } from "../lib/registos.ts";
+import { garantirDias, grelhaDoDia, matriz } from "../lib/registos.ts";
+import { contarPorClassificar } from "../lib/regras.ts";
 import { calcularPeriodo, diasDoPeriodo, ehVista } from "../lib/periodo.ts";
 import {
   dataLocal,
@@ -103,11 +104,7 @@ export default async function Pagina({
     <Painel
       hoje={hoje}
       leitura={estadoLeitura()}
-      porClassificar={porClassificar().map((e) => ({
-        remetente: e.remetente,
-        assunto: e.assunto,
-        quando: `${diaMes(dataLocal(new Date(e.recebido_em)))} ${horaLocal(new Date(e.recebido_em))}`,
-      }))}
+      porClassificar={contarPorClassificar(7)}
       periodo={periodo}
       grelha={grelha}
       dias={colunas}

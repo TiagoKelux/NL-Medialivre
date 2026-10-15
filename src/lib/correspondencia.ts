@@ -123,13 +123,22 @@ export function corresponder(
 
   const nome = normalizarNome(extrairNome(remetente));
   const traz = procurador(corpo, newsletters);
+  const bate = (n: Newsletter) =>
+    enderecoBate(remetente, n.remetentes) &&
+    (!n.marcaCorpo.trim() || traz(normalizarHtml(n.marcaCorpo.trim()))) &&
+    (!n.padraoRemetente.trim() || nome === normalizarNome(n.padraoRemetente)) &&
+    (!n.padraoAssunto || contem(assunto, n.padraoAssunto));
+  // Regras guardadas no painel (regras-fusao.ts): endereço exato e marca no
+  // corpo, cada uma em alternativa ao critério do ficheiro.
+  const bateAlternativa = (n: Newsletter) =>
+    (n.alternativas ?? []).some(
+      (a) =>
+        a.marcaCorpo.trim() !== "" &&
+        enderecoBate(remetente, [a.remetente]) &&
+        traz(normalizarHtml(a.marcaCorpo.trim())),
+    );
   const candidatas = newsletters.filter(
-    (n) =>
-      estaConfigurada(n) &&
-      enderecoBate(remetente, n.remetentes) &&
-      (!n.marcaCorpo.trim() || traz(normalizarHtml(n.marcaCorpo.trim()))) &&
-      (!n.padraoRemetente.trim() || nome === normalizarNome(n.padraoRemetente)) &&
-      (!n.padraoAssunto || contem(assunto, n.padraoAssunto)),
+    (n) => estaConfigurada(n) && (bate(n) || bateAlternativa(n)),
   );
   if (candidatas.length <= 1) return candidatas[0] ?? null;
 

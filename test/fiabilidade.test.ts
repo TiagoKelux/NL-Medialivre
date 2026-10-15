@@ -719,3 +719,183 @@ test("invariante: nenhum 'Não Saiu' fechado de uma gratuita sem prova de ausên
     .all() as { newsletter_id: string; detalhe: string }[];
   for (const r of abertos) assert.doesNotMatch(r.detalhe, /→ Não Saiu/, r.newsletter_id);
 });
+
+// ── Regras guardadas no painel ("Por classificar") ─────────────────────────
+
+const fusao = await import("../src/lib/regras-fusao.ts");
+const regras = await import("../src/lib/regras.ts");
+
+/** Grava um email com o HTML dado, como a recolha o faria. Devolve o id. */
+const gravarComCorpo = (remetente: string, assunto: string, quando: Date, html: string, nid: string | null = null) => {
+  const corpo = processarCorpo(html);
+  return Number(
+    db()
+      .prepare(
+        `INSERT INTO emails (internet_message_id, remetente, assunto, recebido_em, corpo_html,
+           corpo_normalizado, hash_conteudo, newsletter_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(`r${++seq}@teste`, remetente, assunto, quando.toISOString(), html, corpo.normalizado, corpo.hash, nid)
+      .lastInsertRowid,
+  );
+};
+const nidDe = (id: number) =>
+  (db().prepare(`SELECT newsletter_id FROM emails WHERE id = ?`).get(id) as { newsletter_id: string | null })
+    .newsletter_id;
+const SABADO = "Sábado <info@news.sabado.pt>";
+const marcaSabado = (nome: string) => `/4196/SABADO_MASTHEAD/NEWSLETTER_${nome}_LEADERBOARD`;
+
+test("deteção da marca no corpo: com '/' e com '%2F', sem repetições", () => {
+  assert.deepEqual(fusao.marcasNoCorpo(anuncio("JORNALDENEGOCIOS", "LEX") + anuncio("JORNALDENEGOCIOS", "LEX", "%2F")), [
+    "/4196/JORNALDENEGOCIOS_MASTHEAD/NEWSLETTER_LEX_LEADERBOARD",
+  ]);
+  assert.deepEqual(fusao.marcasNoCorpo(anuncio("JORNALDENEGOCIOS", "5_COISAS_A_SABER", "%2f")), [
+    "/4196/JORNALDENEGOCIOS_MASTHEAD/NEWSLETTER_5_COISAS_A_SABER_LEADERBOARD",
+  ]);
+  assert.deepEqual(fusao.marcasNoCorpo(corpoSemAnuncio), []);
+});
+
+test("fusão: o ficheiro é a base, o painel só acrescenta", () => {
+  const copia = (id: string) => structuredClone(nl(id));
+  const lista = [copia("cm-exclusivos"), copia("sabado-capa")];
+  const novas = [
+    { id: 1, newsletterId: "cm-exclusivos", remetente: "novo@news.correiodamanha.pt", marcaCorpo: "/4196/CORREIODAMANHA_MASTHEAD/NEWSLETTER_EXCL2_LEADERBOARD" },
+    { id: 2, newsletterId: "sabado-capa", remetente: "info@news.sabado.pt", marcaCorpo: marcaSabado("CAPA") },
+  ];
+  const [cm, capa] = fusao.fundirTodas(novas, lista);
+
+  // Configurada no ficheiro: o critério do ficheiro mantém-se, a regra entra como alternativa.
+  assert.equal(cm.marcaCorpo, "/4196/CORREIODAMANHA_MASTHEAD/NEWSLETTER_EXCLUSIVOS_LEADERBOARD");
+  assert.equal(cm.alternativas?.length, 1);
+  assert.deepEqual(cm.remetentes, ["info@news.correiodamanha.pt", "novo@news.correiodamanha.pt"]);
+  assert.equal(corresponder(CM("Exclusivos"), "x", anuncio("CORREIODAMANHA", "EXCLUSIVOS"), [cm])?.id, "cm-exclusivos");
+  assert.equal(corresponder("CM <novo@news.correiodamanha.pt>", "x", anuncio("CORREIODAMANHA", "EXCL2"), [cm])?.id, "cm-exclusivos");
+  // A alternativa exige o endereço exato: a marca nova do endereço antigo não serve.
+  assert.equal(corresponder(CM("Exclusivos"), "x", anuncio("CORREIODAMANHA", "EXCL2"), [cm]), null);
+
+  // Por configurar no ficheiro: a regra passa a ser o critério principal.
+  assert.ok(!estaConfigurada(lista[1]));
+  assert.ok(estaConfigurada(capa));
+  assert.equal(capa.marcaCorpo, marcaSabado("CAPA"));
+  assert.equal(capa.alternativas, undefined);
+  assert.equal(corresponder(SABADO, "Capa da semana", anuncio("SABADO", "CAPA"), [capa])?.id, "sabado-capa");
+  // Marketing do mesmo remetente, sem a marca, continua de fora.
+  assert.equal(corresponder(SABADO, "Assine já", corpoSemAnuncio, [capa]), null);
+
+  // Aplicar sem regras repõe o ficheiro, e aplicar duas vezes dá o mesmo.
+  fusao.aplicarNaConfig(novas, lista);
+  fusao.aplicarNaConfig(novas, lista);
+  assert.equal(lista[0].alternativas?.length, 1);
+  fusao.aplicarNaConfig([], lista);
+  assert.equal(lista[0].alternativas, undefined);
+  assert.deepEqual(lista[0].remetentes, ["info@news.correiodamanha.pt"]);
+  assert.deepEqual(lista[1].remetentes, []);
+  assert.equal(lista[1].marcaCorpo, "");
+});
+
+test("atribuir no painel: grava a regra, reclassifica e reavalia o dia", () => {
+  const dia = "2026-10-15"; // quinta-feira: dia da Sábado · Capa
+  registos.gerarDia(dia);
+  assert.ok(!estaConfigurada(nl("sabado-capa")));
+  const edicao = gravarComCorpo(SABADO, "A capa desta semana", lisboa(dia, "08:05"), `<p>capa</p>${anuncio("SABADO", "CAPA")}`);
+  const marketing = gravarComCorpo(SABADO, "Assine a Sábado com desconto", lisboa(dia, "09:00"), corpoSemAnuncio);
+
+  const solto = regras.porClassificar(3650).find((e) => e.id === edicao);
+  assert.ok(solto, "aparece em 'por classificar'");
+  assert.deepEqual(solto.marcas, [marcaSabado("CAPA")]);
+  assert.equal(solto.sugestao, "sabado-capa");
+
+  // Validação no servidor: marca que o email não traz, newsletter inexistente.
+  assert.equal(regras.atribuir(edicao, "sabado-capa", marcaSabado("OUTRA")).ok, false);
+  assert.equal(regras.atribuir(edicao, "nao-existe", marcaSabado("CAPA")).ok, false);
+  assert.equal(regras.atribuir(marketing, "sabado-capa", marcaSabado("CAPA")).ok, false);
+
+  const r = regras.atribuir(edicao, "sabado-capa", marcaSabado("CAPA"), "medialivre");
+  assert.ok(r.ok, r.mensagem);
+  assert.equal(nidDe(edicao), "sabado-capa");
+  assert.equal(nidDe(marketing), null);
+  assert.ok(estaConfigurada(nl("sabado-capa")));
+  assert.deepEqual(nl("sabado-capa").remetentes, ["info@news.sabado.pt"]);
+  const reg = registo("sabado-capa", dia);
+  assert.ok([1, 2].includes(reg.codigo_estado), `código ${reg.codigo_estado}`);
+  assert.ok(regras.porClassificar(3650).every((e) => e.id !== edicao));
+  assert.equal(regras.estadoNewsletters().find((s) => s.id === "sabado-capa")?.origem, "painel");
+
+  // Outra vez é recusado (o email já conta); ficou registado quem e o quê.
+  assert.equal(regras.atribuir(edicao, "sabado-capa", marcaSabado("CAPA")).ok, false);
+  const alteracao = regras.ultimasAlteracoes(1)[0];
+  assert.equal(alteracao.acao, "Regra acrescentada");
+  assert.equal(alteracao.quem, "medialivre");
+  assert.match(alteracao.detalhe, /Sábado · Capa/);
+
+  // Um email novo com a marca, de outra semana, entra direto pela recolha.
+  assert.equal(corresponder(SABADO, "Outra capa", anuncio("SABADO", "CAPA", "%2F"))?.id, "sabado-capa");
+});
+
+test("regra que faria um email contar para duas newsletters é recusada", async () => {
+  // Um email já atribuído à Capa traz também a marca da "O Melhor do Mês".
+  const duplo = gravarComCorpo(SABADO, "Especial", lisboa("2026-10-01", "12:05"),
+    anuncio("SABADO", "CAPA") + anuncio("SABADO", "MELHOR"));
+  registos.reavaliar("sabado-capa", "2026-10-01");
+  await reclassificarAgora();
+  assert.equal(nidDe(duplo), "sabado-capa");
+
+  const melhor = gravarComCorpo(SABADO, "O melhor de setembro", lisboa("2026-10-01", "12:10"), anuncio("SABADO", "MELHOR"));
+  const antes = regras.lerRegras().length;
+  const r = regras.atribuir(melhor, "sabado-o-melhor-do-mes", marcaSabado("MELHOR"));
+  assert.equal(r.ok, false);
+  assert.match(r.mensagem, /duas newsletters/);
+  assert.match(r.mensagem, /Sábado · Capa/);
+  assert.equal(regras.lerRegras().length, antes, "nada gravado");
+  assert.equal(nidDe(duplo), "sabado-capa");
+  assert.ok(!estaConfigurada(nl("sabado-o-melhor-do-mes")));
+
+  // Marca que já identifica outra newsletter (no ficheiro): recusada também.
+  const lex = gravarComCorpo("Lex <info@outro-endereco.pt>", "Contratos", lisboa("2026-10-08", "16:00"), anuncio("JORNALDENEGOCIOS", "LEX"));
+  const r2 = regras.atribuir(lex, "negocios-financas", "/4196/JORNALDENEGOCIOS_MASTHEAD/NEWSLETTER_LEX_LEADERBOARD");
+  assert.equal(r2.ok, false);
+  assert.match(r2.mensagem, /já identifica Negócios · Lex/);
+});
+
+/** O que a recolha faz no fim de cada leitura. */
+async function reclassificarAgora() {
+  const m = await import("../src/lib/recolha.ts");
+  return m.reavaliarAfetados(m.reclassificar());
+}
+
+test("'não é newsletter': por assunto ou só a mensagem, sem mexer em estados", () => {
+  const quando = lisboa("2026-10-14", "15:00");
+  const a = gravarComCorpo("Loja <promo@loja.pt>", "Promoção de outono", quando, corpoSemAnuncio);
+  const b = gravarComCorpo("Loja <promo@loja.pt>", "  promoção  de OUTONO ", quando, corpoSemAnuncio);
+  const c = gravarComCorpo("Loja <promo@loja.pt>", "Novidades da loja", quando, corpoSemAnuncio);
+  const ids = () => new Set(regras.porClassificar(3650).map((e) => e.id));
+  assert.ok(ids().has(a) && ids().has(b) && ids().has(c));
+
+  const r = regras.excluir(a, "assunto");
+  assert.ok(r.ok, r.mensagem);
+  assert.ok(!ids().has(a) && !ids().has(b), "o mesmo assunto, escrito de outra forma, também sai");
+  assert.ok(ids().has(c));
+  assert.equal(regras.excluir(a, "assunto").ok, false, "repetido");
+
+  assert.ok(regras.excluir(c, "mensagem").ok);
+  assert.ok(!ids().has(c));
+  assert.equal(nidDe(a), null);
+  assert.equal(regras.ultimasAlteracoes(1)[0].acao, "Email ignorado");
+
+  const assunto = regras.lerExclusoes().find((x) => x.tipo === "assunto")!;
+  assert.ok(regras.removerExclusao(assunto.id).ok);
+  assert.ok(ids().has(a) && ids().has(b));
+});
+
+test("remover a regra do painel repõe o ficheiro e reavalia", () => {
+  const regra = regras.lerRegras().find((r) => r.newsletterId === "sabado-capa")!;
+  const r = regras.removerRegra(regra.id);
+  assert.ok(r.ok, r.mensagem);
+  assert.ok(!estaConfigurada(nl("sabado-capa")));
+  const edicao = db().prepare(`SELECT id FROM emails WHERE assunto = 'A capa desta semana'`).get() as { id: number };
+  assert.equal(nidDe(edicao.id), null);
+  const reg = db()
+    .prepare(`SELECT nr_ocorrencias FROM registos WHERE newsletter_id = 'sabado-capa' AND data_prevista = '2026-10-15'`)
+    .get() as { nr_ocorrencias: number };
+  assert.equal(reg.nr_ocorrencias, 0);
+  assert.equal(regras.ultimasAlteracoes(1)[0].acao, "Regra removida");
+});

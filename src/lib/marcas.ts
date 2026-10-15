@@ -49,7 +49,12 @@ export function normalizarHtml(html: string): string {
 
 /** As marcas de corpo configuradas, normalizadas, sem repetições, por ordem. */
 function marcasConfiguradas(newsletters: Newsletter[]): string[] {
-  const todas = newsletters.map((n) => n.marcaCorpo.trim()).filter((m) => m !== "");
+  // As regras do painel (`alternativas`) também contam: sem elas, os emails
+  // guardados não saberiam se trazem uma marca acrescentada depois.
+  const todas = newsletters
+    .flatMap((n) => [n.marcaCorpo, ...(n.alternativas ?? []).map((a) => a.marcaCorpo)])
+    .map((m) => m.trim())
+    .filter((m) => m !== "");
   return [...new Set(todas.map(normalizarHtml))].sort();
 }
 

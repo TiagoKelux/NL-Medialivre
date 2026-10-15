@@ -70,6 +70,18 @@ export interface Newsletter {
    */
   marcaCorpo: string;
   ativa: boolean;
+  /**
+   * Outras formas de reconhecer a newsletter, guardadas no painel ("Por
+   * classificar"), nunca no ficheiro: cada uma é um endereço exato e uma marca
+   * no corpo, e basta uma bater. Preenchido em memória por `regras-fusao.ts`.
+   */
+  alternativas?: RegraAlternativa[];
+}
+
+/** Um endereço e a marca no corpo que, juntos, identificam uma newsletter. */
+export interface RegraAlternativa {
+  remetente: string;
+  marcaCorpo: string;
 }
 
 export interface Email {

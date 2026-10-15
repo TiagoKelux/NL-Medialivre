@@ -71,12 +71,6 @@ export interface CelulaMatriz {
   ressalva: Ressalva | null;
 }
 
-export interface EmailSolto {
-  remetente: string;
-  assunto: string;
-  quando: string;
-}
-
 /** O que a rota /api/preview devolve para o cartão de passagem do rato. */
 interface Previsualizacao {
   marca: string;
@@ -113,7 +107,8 @@ export interface LinhaMatriz extends Cadencia {
 interface Props {
   hoje: string;
   leitura: EstadoLeitura;
-  porClassificar: EmailSolto[];
+  /** Emails da última semana sem newsletter atribuída (ver /classificar). */
+  porClassificar: number;
   periodo: Periodo;
   grelha: LinhaDia[];
   dias: DiaMatriz[];
@@ -396,28 +391,15 @@ export default function Painel({ hoje, leitura, porClassificar, periodo, grelha,
       <header className="topo">
         <h1>Media Livre — Monitor de Newsletters</h1>
         <LeituraCaixa leitura={leitura} />
-        {porClassificar.length > 0 && (
-          <details className="soltos">
-            <summary>
-              {porClassificar.length === 1
-                ? "1 email da última semana sem newsletter atribuída"
-                : `${porClassificar.length} emails da última semana sem newsletter atribuída`}
-            </summary>
-            <p>
-              Não são boas-vindas nem promoções conhecidas. Ou é uma newsletter ainda por configurar,
-              ou um remetente que mudou de nome — no segundo caso, a newsletter está a aparecer como
-              “Não Saiu” sem razão.
-            </p>
-            <ul>
-              {porClassificar.map((e, i) => (
-                <li key={i}>
-                  <span className="quando">{e.quando}</span>{" "}
-                  <strong>{e.remetente.split("<")[0].trim() || e.remetente}</strong> — {e.assunto}
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
+        <p className={`soltos ${porClassificar > 0 ? "ha-soltos" : ""}`}>
+          <Link href="/classificar">
+            {porClassificar === 0
+              ? "Newsletters e regras de reconhecimento ›"
+              : porClassificar === 1
+                ? "1 email da última semana sem newsletter atribuída — classificar ›"
+                : `${porClassificar} emails da última semana sem newsletter atribuída — classificar ›`}
+          </Link>
+        </p>
       </header>
 
       <div className="linha-filtros">
