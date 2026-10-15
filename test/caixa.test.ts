@@ -262,23 +262,48 @@ test("vigia: uma linha no log quando a caixa é cortada, nenhuma enquanto não m
   assert.equal(linhas.length, 3);
 });
 
-test("/api/saude: caixaCortada vem como campo extra e não mexe no 200/503", async () => {
-  const { respostaSaude } = await import("../src/lib/saude.ts");
+test("/api/estado: caixaCortada vem como campo extra e não mexe no 200/503", async () => {
+  const { estadoCompleto, respostaSaude } = await import("../src/lib/saude.ts");
   // Sem leitura: 503, com os campos da caixa presentes.
-  let r = respostaSaude();
+  let r = estadoCompleto();
   assert.equal(r.status, 503);
   assert.equal(r.corpo.saudavel, false);
   assert.ok(Array.isArray(r.corpo.caixaCortada));
   assert.ok(Array.isArray(r.corpo.caixa));
+  assert.equal(respostaSaude().status, 503);
 
   // Leitura boa agora, mesmo com domínios cortados (a Record, sem nada desde 13/10): 200.
   leitura.registarLeitura(null, new Date(Date.now() - 7 * 86_400_000));
-  r = respostaSaude();
+  r = estadoCompleto();
   assert.equal(r.status, 200);
   assert.equal(r.corpo.saudavel, true);
   assert.ok(r.corpo.caixaCortada!.some((c) => c.dominio === "news.jornalrecord.pt"));
+  assert.equal(respostaSaude().status, 200);
 
-  // Uma falha de leitura dá 503, com ou sem caixa cortada.
+  // Uma falha de leitura dá 503, com ou sem caixa cortada; o erro em bruto só aqui.
   leitura.registarLeitura(new Error("IMAP em baixo"));
-  assert.equal(respostaSaude().status, 503);
+  r = estadoCompleto();
+  assert.equal(r.status, 503);
+  assert.equal(r.corpo.falha, "IMAP em baixo");
+});
+
+test("/api/saude é público: só o essencial, com o mesmo 200/503", async () => {
+  const { respostaSaude } = await import("../src/lib/saude.ts");
+  const chaves = ["falha", "minutosDesdeLeitura", "saudavel", "ultimaLeitura"];
+
+  // Falha (do teste anterior): 503, código genérico, nada do erro em bruto nem da caixa.
+  leitura.registarLeitura(new Error("IMAP em baixo: user@exemplo.pt 10.0.0.1"));
+  let r = respostaSaude();
+  assert.equal(r.status, 503);
+  assert.deepEqual(Object.keys(r.corpo).sort(), chaves);
+  assert.equal(r.corpo.falha, "leitura_falhou");
+  assert.doesNotMatch(JSON.stringify(r.corpo), /IMAP|exemplo|10\.0\.0\.1|jornalrecord/);
+
+  // Leitura boa: 200 e o corpo traz a string que a verificação do Google procura.
+  leitura.registarLeitura(null);
+  r = respostaSaude();
+  assert.equal(r.status, 200);
+  assert.deepEqual(Object.keys(r.corpo).sort(), chaves);
+  assert.equal(r.corpo.falha, null);
+  assert.match(JSON.stringify(r.corpo), /"saudavel":true/);
 });

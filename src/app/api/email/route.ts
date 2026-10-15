@@ -1,4 +1,5 @@
 import { db } from "../../../lib/db.ts";
+import { CABECALHOS_EMAIL, limparHtmlEmail } from "../../../lib/seguranca.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -7,7 +8,9 @@ export const dynamic = "force-dynamic";
  *
  * O HTML é de terceiros. Serve-se numa caixa de areia (CSP `sandbox`, sem
  * scripts e com origem opaca), para não poder correr código nem chegar ao
- * painel. As imagens carregam, para se ver o email como ele é.
+ * painel. Sem formulários nem `<base>`, e o `<meta http-equiv>` (o refresh,
+ * que redireciona sem precisar de scripts) sai do HTML antes de se servir.
+ * As imagens carregam, para se ver o email como ele é.
  */
 export function GET(pedido: Request) {
   const id = Number(new URL(pedido.url).searchParams.get("id"));
@@ -19,14 +22,7 @@ export function GET(pedido: Request) {
     | undefined;
   if (!email) return new Response("Email não encontrado.", { status: 404 });
 
-  return new Response(email.corpo_html || "<p>(email sem corpo)</p>", {
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Content-Security-Policy":
-        "sandbox allow-popups allow-popups-to-escape-sandbox; default-src 'none'; img-src * data:; style-src 'unsafe-inline' *; font-src *",
-      "X-Content-Type-Options": "nosniff",
-      "Referrer-Policy": "no-referrer",
-      "Cache-Control": "no-store",
-    },
-  });
+  // Sem `<meta http-equiv>` nem `<base>`: um refresh redireciona mesmo sem scripts.
+  const html = limparHtmlEmail(email.corpo_html || "") || "<p>(email sem corpo)</p>";
+  return new Response(html, { headers: { ...CABECALHOS_EMAIL } });
 }

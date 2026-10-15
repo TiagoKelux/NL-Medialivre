@@ -325,12 +325,16 @@ export function removerExclusao(id: number, quem: string | null = null): Resulta
     | { tipo: TipoExclusao; rotulo: string }
     | undefined;
   if (!linha) return falha("Não encontrado.");
-  db().prepare(`DELETE FROM exclusoes WHERE id = ?`).run(id);
-  registar(
-    linha.tipo === "assunto" ? "Assunto volta a contar" : "Email volta a contar",
-    linha.tipo === "assunto" ? `Assunto «${linha.rotulo}»` : linha.rotulo,
-    quem,
-  );
+  // Apagar e deixar rasto juntos: ou as duas coisas, ou nenhuma.
+  const bd = db();
+  bd.transaction(() => {
+    bd.prepare(`DELETE FROM exclusoes WHERE id = ?`).run(id);
+    registar(
+      linha.tipo === "assunto" ? "Assunto volta a contar" : "Email volta a contar",
+      linha.tipo === "assunto" ? `Assunto «${linha.rotulo}»` : linha.rotulo,
+      quem,
+    );
+  })();
   return { ok: true, mensagem: "Feito. Volta a aparecer na lista se estiver por atribuir." };
 }
 

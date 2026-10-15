@@ -26,6 +26,19 @@ export function ehVista(v: unknown): v is Vista {
   return typeof v === "string" && (VISTAS as readonly string[]).includes(v);
 }
 
+/**
+ * Um dia "AAAA-MM-DD" que existe mesmo no calendário (nada de 2026-02-31) e
+ * num intervalo razoável. O que vem no URL passa por aqui antes de chegar às
+ * contas de datas.
+ */
+export function ehData(v: unknown): v is string {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const ano = Number(v.slice(0, 4));
+  if (ano < 2000 || ano > 2100) return false;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+}
+
 export interface Periodo {
   vista: Vista;
   /** O dia que ancora a janela. */
