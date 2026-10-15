@@ -6,6 +6,7 @@ import { datasNoEmail, fraseData } from "./datas.ts";
 import { dataEdicao, intervaloDeBusca } from "./edicao.ts";
 import { naoEEdicao } from "./correspondencia.ts";
 import { motivosSemProva } from "./prova.ts";
+import { extrairArtigos, processarCorpo } from "./conteudo.ts";
 import { dataLocal, horaLocal, paraInstante, paraIso, somarDias, somarMinutos, ultimosDias } from "./tempo.ts";
 import type { CodigoEstado, Newsletter, Periodicidade, Registo, Ressalva } from "./tipos.ts";
 
@@ -100,6 +101,18 @@ function emailsDaEdicao(n: Newsletter, data: string): EmailGuardado[] {
   return linhas.filter((l) => dataEdicao(n, new Date(l.recebido_em)) === data);
 }
 
+/**
+ * O conteúdo de um email para comparar edições: o hash e os artigos,
+ * recalculados do HTML guardado. O `hash_conteudo` gravado na recolha foi
+ * feito com a normalização dessa altura; se a normalização mudar, comparar
+ * um hash novo com um antigo dava sempre "conteúdo novo" — um 1 sem prova.
+ * Recalculando os dois lados com o mesmo código, isso não acontece.
+ */
+function conteudoDe(e: { hash_conteudo: string; corpo_html: string }): { hash: string; artigos: string[] } {
+  if (!e.corpo_html) return { hash: e.hash_conteudo, artigos: [] };
+  return { hash: processarCorpo(e.corpo_html).hash, artigos: extrairArtigos(e.corpo_html) };
+}
+
 /** A edição anterior efetivamente recebida, para comparação de conteúdo (§7.4). */
 function edicaoAnteriorDe(n: Newsletter, data: string): EdicaoAnterior | null {
   // Procura-se para trás a partir do início da janela de busca; o filtro por
@@ -107,15 +120,15 @@ function edicaoAnteriorDe(n: Newsletter, data: string): EdicaoAnterior | null {
   const { fim } = intervaloDeBusca(data);
   const linhas = db()
     .prepare(
-      `SELECT recebido_em, hash_conteudo FROM emails
+      `SELECT recebido_em, hash_conteudo, corpo_html FROM emails
         WHERE newsletter_id = ? AND recebido_em < ?
         ORDER BY recebido_em DESC LIMIT 20`,
     )
-    .all(n.id, paraIso(fim)) as { recebido_em: string; hash_conteudo: string }[];
+    .all(n.id, paraIso(fim)) as { recebido_em: string; hash_conteudo: string; corpo_html: string }[];
 
   for (const l of linhas) {
     const dia = dataEdicao(n, new Date(l.recebido_em));
-    if (dia < data) return { data: dia, hash: l.hash_conteudo };
+    if (dia < data) return { data: dia, ...conteudoDe(l) };
   }
   return null;
 }
@@ -148,7 +161,7 @@ export function reavaliar(newsletterId: string, data: string): Registo | null {
     newsletter: n,
     dataPrevista: data,
     horaLimite,
-    ocorrencias: emails.map((e) => ({ recebidoEm: new Date(e.recebido_em), hash: e.hash_conteudo })),
+    ocorrencias: emails.map((e) => ({ recebidoEm: new Date(e.recebido_em), ...conteudoDe(e) })),
     edicaoAnterior: edicaoAnteriorDe(n, data),
     fechado: existente.fechado === 1,
   });

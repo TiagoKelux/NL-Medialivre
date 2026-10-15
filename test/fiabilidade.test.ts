@@ -22,7 +22,9 @@ const { NEWSLETTERS, estaConfigurada, newsletterPorId } = await import("../confi
 const { paraInstante } = await import("../src/lib/tempo.ts");
 const { db, fecharDb } = await import("../src/lib/db.ts");
 const registos = await import("../src/lib/registos.ts");
-const { processarCorpo } = await import("../src/lib/conteudo.ts");
+const conteudo = await import("../src/lib/conteudo.ts");
+const { processarCorpo } = conteudo;
+const { datasNoEmail } = await import("../src/lib/datas.ts");
 const prova = await import("../src/lib/prova.ts");
 const apresentacao = await import("../src/lib/apresentacao.ts");
 const { PAGAS } = await import("../config/pagas.ts");
@@ -226,6 +228,216 @@ test("corpo vazio nunca dá 'conteúdo repetido'", () => {
   assert.equal(r.codigo, 1);
 });
 
+// ── Conteúdo: entidades, imagens, artigos ──────────────────────────────────
+
+test("entidades HTML: decimais, hexadecimais e com nome, incluindo todos os acentos portugueses", () => {
+  const { descodificarEntidades, extrairTexto } = conteudo;
+  assert.equal(descodificarEntidades("Mar&#xe7;o"), "Março");
+  assert.equal(descodificarEntidades("Mar&#XE7;o &#231; &#x00E3;"), "Março ç ã");
+  assert.equal(descodificarEntidades("&Aacute;gua &Eacute;vora &Ccedil;"), "Água Évora Ç");
+  const nomes = "aacute eacute iacute oacute uacute agrave atilde otilde acirc ecirc ocirc ccedil".split(" ");
+  const esperado = "áéíóúàãõâêôç";
+  assert.equal(descodificarEntidades(nomes.map((n) => `&${n};`).join("")), esperado);
+  assert.equal(
+    descodificarEntidades(nomes.map((n) => `&${n[0].toUpperCase()}${n.slice(1)};`).join("")),
+    esperado.toUpperCase(),
+  );
+  assert.equal(descodificarEntidades("&amp;lt; &lt;b&gt; &quot;x&quot; &rsquo; &euro; &laquo;&raquo;"), '&lt; <b> "x" ’ € «»');
+  // Desconhecida: fica como está, não parte a palavra com um espaço.
+  assert.equal(descodificarEntidades("a&naoexiste;b"), "a&naoexiste;b");
+  assert.equal(extrairTexto("<p>15 de Mar&#xe7;o</p>").trim(), "15 de Março");
+});
+
+test("data por extenso com o mês acentuado em entidade é reconhecida", () => {
+  assert.deepEqual(datasNoEmail("", "<p>Segunda, 16 de Mar&#xe7;o de 2026</p>", "2026-03-16"), ["2026-03-16"]);
+  assert.deepEqual(datasNoEmail("", "<p>2 de mar&#231;o</p>", "2026-03-02"), ["2026-03-02"]);
+});
+
+test("datas tiram-se do texto, não dos endereços das imagens", () => {
+  const img = (s: string) => `<p>Manchete do dia</p><img src="https://cdn.flash.pt/images/${s}.jpg" alt="Foto">`;
+  // Duas imagens diferentes, que só diferem nos números com forma de data.
+  const a = processarCorpo(img("img_828x523uu2026-10-03-15-32-44-413052"));
+  const b = processarCorpo(img("img_828x523uu2026-10-04-09-11-02-413999"));
+  assert.notEqual(a.hash, b.hash);
+  assert.match(a.normalizado, /2026-10-03-15-32-44-413052/);
+  // A data do cabeçalho, no texto, continua a não contar.
+  const c = processarCorpo("<p>Sexta-feira, 3 de outubro de 2026</p><p>Manchete</p>");
+  const d = processarCorpo("<p>Sábado, 4 de outubro de 2026</p><p>Manchete</p>");
+  assert.equal(c.hash, d.hash);
+});
+
+/** Um link como vem nas newsletters: embrulhado no tracking da Amazon SES. */
+const ses = (destino: string) =>
+  `https://sgdbs6pn.r.eu-west-1.awstrack.me/L0/${encodeURIComponent(destino)}` +
+  `/1/010201a0f155ab11-f77c0f02-f1b9-4869-8aa8-2a9d3849a4f2-000000/jBZ47Z8vESq4upcXtM1G6ooBU3A=473`;
+
+test("links: o tracking desembrulha-se e a query e o fragmento caem", () => {
+  const { desembrulharLink } = conteudo;
+  const artigo =
+    "https://www.maxima.pt/atual/detalhe/caso-cornell-o-que-portugal-pode-aprender?utm_campaign=geral&utm_edition=202610050800#topo";
+  assert.equal(desembrulharLink(ses(artigo)), "maxima.pt/atual/detalhe/caso-cornell-o-que-portugal-pode-aprender");
+  // Destino só parcialmente codificado, como a SES também os escreve.
+  assert.equal(
+    desembrulharLink(
+      "https://x.r.eu-west-1.awstrack.me/L0/https:%2F%2Fwww.maxima.pt/1/010201a0f155ab11-f77c0f02-f1b9-4869-8aa8-2a9d3849a4f2-000000/abc=473",
+    ),
+    "maxima.pt",
+  );
+  // Redirecionador com o destino num parâmetro (Echobox e afins).
+  assert.equal(
+    desembrulharLink(
+      `https://click.echobox.com/redirect?url=${encodeURIComponent("https://www.flash.pt/casas-reais/detalhe/carlos-iii-recebe-ameaca?utm_source=x")}`,
+    ),
+    "flash.pt/casas-reais/detalhe/carlos-iii-recebe-ameaca",
+  );
+  assert.equal(desembrulharLink("https://www.record.pt/x/detalhe/a-b-c?a=1&amp;b=2"), "record.pt/x/detalhe/a-b-c");
+});
+
+test("só contam artigos da marca: fora redes sociais, anúncios, lojas de apps, subscrições e secções", () => {
+  const html = [
+    ses("https://www.maxima.pt/moda/tendencias/detalhe/os-giros-os-wow-e-os-looks-mais-estranhos?utm_campaign=geral"),
+    ses("https://www.maxima.pt/moda/tendencias/detalhe/os-giros-os-wow-e-os-looks-mais-estranhos?utm_campaign=outro"),
+    ses("https://www.record.pt/opiniao/cronistas/octavio-ribeiro/detalhe/cris-aquece"),
+    ses("https://www.record.pt/opiniao/detalhe/contas-aprovadas-e-futuro-semeado"),
+    ses("https://view-mail.echobox.com/viewinbrowser?token=abc"),
+    ses("https://securepubads.g.doubleclick.net/gampad/jump?iu=/4196/MAXIMA_MASTHEAD"),
+    ses("https://subscribe.campaign-list.com/v1/public/campaigns/unsubscribe?campaignURN=x"),
+    ses("https://www.instagram.com/maxima.pt/"),
+    ses("https://www.facebook.com/www.maxima.pt"),
+    "https://www.whatsapp.com/channel/0029VaCHWoaKQuJDudSYSR1a",
+    "https://apps.apple.com/pt/app/cm-jornal/id455241749",
+    "https://play.google.com/store/apps/details?id=pt.cm",
+    "https://www.record.pt/assinaturas/compra/20250813-1431-estudantes",
+    "https://www.flash.pt/subscrevernewsletters",
+    "https://www.jornaldenegocios.pt/cotacoes/cotacao/TEIXEIRA-DUARTE",
+    "https://www.maxima.pt?utm_campaign=reativacao1",
+    "https://www.flash.pt/celebridades/mundo",
+    "#?utm_campaign=mundo",
+  ]
+    .map((h) => `<a href="${h}">x</a>`)
+    .join("");
+  assert.deepEqual(conteudo.extrairArtigos(html), [
+    "maxima.pt/moda/tendencias/detalhe/os-giros-os-wow-e-os-looks-mais-estranhos",
+    "record.pt/opiniao/cronistas/octavio-ribeiro/detalhe/cris-aquece",
+    "record.pt/opiniao/detalhe/contas-aprovadas-e-futuro-semeado",
+  ]);
+});
+
+const arts = (...ids: number[]) => ids.map((i) => `maxima.pt/atual/detalhe/artigo-numero-${i}`);
+const ant = (hash: string, artigos: string[]) => ({ edicaoAnterior: { data: "2026-09-30", hash, artigos } });
+const ocA = (hora: string, hash: string, artigos: string[]) => ({ recebidoEm: lisboa("2026-10-01", hora), hash, artigos });
+
+test("conteúdo: hash igual → 4", () => {
+  const r = classificar(ctx({ ocorrencias: [ocA("06:06", "h1", arts(1, 2, 3))], ...ant("h1", arts(4, 5, 6)) }));
+  assert.equal(r.codigo, 4);
+  assert.match(r.detalhe, /Hash igual/);
+});
+
+test("conteúdo: hash diferente mas exatamente os mesmos artigos (Jaccard 1) → 4", () => {
+  const r = classificar(ctx({ ocorrencias: [ocA("06:06", "h2", arts(3, 1, 2))], ...ant("h1", arts(1, 2, 3)) }));
+  assert.equal(r.codigo, 4);
+  assert.equal(r.semComparacao, false);
+  assert.match(r.detalhe, /Os mesmos 3 artigos da edição de 30\/09 → conteúdo repetido/);
+  // Atrasada e com os mesmos artigos: o 4 tem precedência sobre o 2.
+  assert.equal(
+    classificar(ctx({ ocorrencias: [ocA("07:30", "h2", arts(1, 2, 3))], ...ant("h1", arts(1, 2, 3)) })).codigo,
+    4,
+  );
+});
+
+test("conteúdo: Jaccard 1 com menos de 3 artigos não prova repetição — só avisa", () => {
+  const r = classificar(ctx({ ocorrencias: [ocA("06:06", "h2", arts(1, 2))], ...ant("h1", arts(1, 2)) }));
+  assert.equal(r.codigo, 1);
+  assert.equal(r.provavelmenteRepetida, true);
+  assert.match(r.detalhe, /provavelmente repetida: 2 de 2 artigos iguais à edição anterior/);
+});
+
+test("conteúdo: maioria dos artigos iguais (Jaccard ≥ limiar, < 1) mantém o código e avisa no detalhe", () => {
+  // maxima-geral 02/10: a edição de 01/10 com mais um bloco — 6 de 7 (0,86).
+  const r = classificar(
+    ctx({ ocorrencias: [ocA("06:06", "h2", arts(1, 2, 3, 4, 5, 6, 7))], ...ant("h1", arts(1, 2, 3, 4, 5, 6)) }),
+  );
+  assert.equal(r.codigo, 1);
+  assert.equal(r.provavelmenteRepetida, true);
+  assert.match(r.detalhe, /⚠ provavelmente repetida: 6 de 7 artigos iguais à edição anterior/);
+  assert.doesNotMatch(r.detalhe, /conteúdo novo/);
+  // flash-mundo 04/10: 5 de 6 (0,71). Atrasada: fica 2, com o mesmo aviso.
+  const f = classificar(
+    ctx({ ocorrencias: [ocA("07:30", "h2", arts(1, 2, 3, 4, 5, 9))], ...ant("h1", arts(1, 2, 3, 4, 5, 6)) }),
+  );
+  assert.equal(f.codigo, 2);
+  assert.match(f.detalhe, /provavelmente repetida: 5 de 6 artigos/);
+  // Com a correção do editor 30 min depois: 3 (Duplicada), e o aviso continua.
+  const d = classificar(
+    ctx({
+      ocorrencias: [ocA("06:03", "h2", arts(1, 2, 3, 4, 5, 6, 7)), ocA("06:33", "h3", arts(8, 9, 10))],
+      ...ant("h1", arts(1, 2, 3, 4, 5, 6)),
+    }),
+  );
+  assert.equal(d.codigo, 3);
+  assert.match(d.detalhe, /1\.º envio: .*provavelmente repetida: 6 de 7 artigos/);
+});
+
+test("conteúdo: abaixo do limiar (negocios-tecnologia 01/10, 0,67) é conteúdo novo, sem aviso", () => {
+  const r = classificar(
+    ctx({
+      ocorrencias: [ocA("06:06", "h2", arts(1, 2, 3, 4, 5, 6, 7, 8, 11, 12))],
+      ...ant("h1", arts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)),
+    }),
+  );
+  assert.equal(r.codigo, 1);
+  assert.equal(r.provavelmenteRepetida, undefined);
+  assert.match(r.detalhe, /conteúdo novo/);
+  assert.doesNotMatch(r.detalhe, /provavelmente/);
+});
+
+test("conteúdo: sem artigos de um dos lados, decide só o hash", () => {
+  const r = classificar(ctx({ ocorrencias: [ocA("06:06", "h2", [])], ...ant("h1", arts(1, 2, 3)) }));
+  assert.equal(r.codigo, 1);
+  assert.match(r.detalhe, /conteúdo novo/);
+});
+
+test("conteúdo: o assunto nunca é prova; artigos repetidos avisam ou dão 4 (de ponta a ponta)", () => {
+  // flash-weekend 15/10 repetiu o assunto de 08/10 ("n.º 203") com 8 artigos novos.
+  const n = nl("negocios-tecnologia");
+  const de = "Jornal de Negócios Tecnologia <info@news.jornaldenegocios.pt>";
+  const corpo = (ids: number[]) =>
+    ids
+      .map(
+        (i) =>
+          `<a href="${ses(`https://www.jornaldenegocios.pt/empresas/tecnologias/detalhe/peca-numero-${i}?utm_source=newsletter`)}">Peça ${i}</a>`,
+      )
+      .join("");
+  gravarEmail(de, "Há moda na cidade", lisboa("2026-10-19", "15:05"), n.id, corpo([1, 2, 3, 4, 5, 6]));
+  gravarEmail(de, "Há moda na cidade", lisboa("2026-10-20", "15:05"), n.id, corpo([11, 12, 13, 14, 15, 16]));
+  registos.reavaliar(n.id, "2026-10-20");
+  let r = registo(n.id, "2026-10-20");
+  assert.equal(r.codigo_estado, 1);
+  assert.doesNotMatch(r.detalhe, /provavelmente|repetido/);
+  assert.match(r.detalhe, /Hash diferente da edição de 19\/10 → conteúdo novo/);
+
+  // Assunto novo, mas 6 de 7 artigos de ontem: aviso no detalhe, código mantém-se.
+  gravarEmail(de, "Assunto completamente novo", lisboa("2026-10-21", "15:05"), n.id, corpo([11, 12, 13, 14, 15, 16, 17]));
+  registos.reavaliar(n.id, "2026-10-21");
+  r = registo(n.id, "2026-10-21");
+  assert.equal(r.codigo_estado, 1);
+  assert.match(r.detalhe, /provavelmente repetida: 6 de 7 artigos iguais à edição anterior/);
+
+  // Exatamente os mesmos artigos, com outro texto à volta: 4.
+  gravarEmail(
+    de,
+    "Outro assunto",
+    lisboa("2026-10-22", "15:05"),
+    n.id,
+    `<p>Texto diferente</p>${corpo([17, 16, 15, 14, 13, 12, 11])}`,
+  );
+  registos.reavaliar(n.id, "2026-10-22");
+  r = registo(n.id, "2026-10-22");
+  assert.equal(r.codigo_estado, 4);
+  assert.match(r.detalhe, /Os mesmos 7 artigos/);
+});
+
+
 // ── Leitura de emails ──────────────────────────────────────────────────────
 
 test("email sem Message-ID nem Date não é deitado fora na leitura da caixa", () => {
@@ -240,14 +452,17 @@ test("email sem Message-ID nem Date não é deitado fora na leitura da caixa", (
 
 let seq = 0;
 /** Grava um email como a recolha o faria; `nid` null = ficou por atribuir. */
-const gravarEmail = (remetente: string, assunto: string, quando: Date, nid: string | null) => {
-  const corpo = processarCorpo(`<p>${assunto} ${seq}</p>`);
+const gravarEmail = (remetente: string, assunto: string, quando: Date, nid: string | null, html?: string) => {
+  // Sem HTML dado, cada email tem um corpo único: dois emails de teste nunca
+  // são "conteúdo repetido" por acaso.
+  const corpoHtml = html ?? `<p>${assunto} ${seq}</p>`;
+  const corpo = processarCorpo(corpoHtml);
   db()
     .prepare(
       `INSERT INTO emails (internet_message_id, remetente, assunto, recebido_em, corpo_html,
          corpo_normalizado, hash_conteudo, newsletter_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(`t${++seq}@teste`, remetente, assunto, quando.toISOString(), `<p>${assunto}</p>`,
+    .run(`t${++seq}@teste`, remetente, assunto, quando.toISOString(), corpoHtml,
       corpo.normalizado, corpo.hash, nid);
 };
 const registo = (nid: string, dia: string) =>

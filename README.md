@@ -20,13 +20,41 @@ código de 1 a 6 e mostra tudo numa página.
 | 1 | Saiu e Tem Conteúdo Atualizado | Dentro da janela, conteúdo diferente do anterior, um só envio |
 | 2 | Saiu Atrasada | Chegou depois de `horaPrevista + toleranciaMinutos` |
 | 3 | Saiu Duplicada | Dois emails distintos na mesma janela |
-| 4 | Saiu com Conteúdo Desatualizado | Hash do texto normalizado igual ao da edição anterior |
+| 4 | Saiu com Conteúdo Desatualizado | Hash do texto normalizado igual ao da edição anterior, ou exatamente os mesmos artigos (≥ 3) |
 | 5 | Não Saiu | Fechou o dia e não chegou nada — só com prova de ausência (ver abaixo) |
 | 6 | Desativada / Não agendada | `ativa: false`, ou hoje não é dia esperado |
 
 Precedência, do mais grave para o menos: **6 → 5 → 3 → 4 → 2 → 1**. O 6 avalia-se
 primeiro e faz curto-circuito. O `codigo_estado` tem um `CHECK (BETWEEN 1 AND 6)`
 na base de dados: é impossível gravar outra coisa.
+
+### Conteúdo repetido
+
+Duas provas, comparadas com a edição anterior efetivamente recebida:
+
+- o **hash** do texto normalizado (sem datas, sem parâmetros de URL; as imagens
+  entram com o endereço inteiro, sem cortar números que parecem datas);
+- os **artigos**: os links da edição, desembrulhados do tracking (Amazon SES
+  `awstrack.me/L0/…`, redirecionadores com `?url=`), sem query nem fragmento, só
+  páginas de artigos da marca (fora redes sociais, anúncios, lojas de apps,
+  subscrições, secções e página inicial).
+
+Hash igual, ou Jaccard dos artigos = 1 com pelo menos 3 artigos → **4**. Jaccard
+≥ `LIMIAR_ARTIGOS` (0,7) e < 1 → o código **não muda**; o detalhe ganha
+"⚠ provavelmente repetida: X de Y artigos iguais à edição anterior" e a decisão
+fica para quem lê. O assunto nunca conta como prova (a FLASH! Weekend de 15/10
+repetiu o assunto da semana anterior com 8 artigos novos).
+
+O limiar foi calibrado com `node scripts/calibrar-artigos.ts <monitor.db>`, que
+abre a base só para leitura e imprime o Jaccard de cada par de edições
+consecutivas. Em 94 pares (29/09 a 15/10): as duas edições requentadas
+conhecidas deram 0,86 (maxima-geral 02/10) e 0,71 (flash-mundo 04/10); a
+legítima mais parecida deu 0,67 (negocios-tecnologia 01/10). Voltar a correr com
+mais dados antes de mexer no limiar.
+
+O hash e os artigos são recalculados do `corpo_html` a cada reavaliação, dos dois
+lados: um `hash_conteudo` gravado com uma normalização antiga nunca é comparado
+com um feito com a nova.
 
 ### Prova de ausência
 
@@ -236,6 +264,7 @@ src/app/
 src/components/Painel.tsx a grelha, a matriz semanal e o painel de detalhe
 src/instrumentation.ts    arranque — sem imports, ver nota abaixo
 scripts/importar-horario.ts  gera a config a partir do Excel
+scripts/calibrar-artigos.ts  Jaccard dos artigos entre edições, só leitura
 ```
 
 ### Nota sobre o arranque

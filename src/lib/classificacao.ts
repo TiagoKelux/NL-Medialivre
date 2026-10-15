@@ -1,6 +1,6 @@
 import type { CodigoEstado, Newsletter } from "./tipos.ts";
 import { diaMes, diaSemanaISO, horaLocal, minutosEntre } from "./tempo.ts";
-import { hashConteudo } from "./conteudo.ts";
+import { hashConteudo, semelhancaArtigos } from "./conteudo.ts";
 
 /**
  * O motor de estados (§4 e §7 da spec).
@@ -15,6 +15,22 @@ import { hashConteudo } from "./conteudo.ts";
 /** Hash de um corpo vazio — não serve para comparar edições. */
 const HASH_VAZIO = hashConteudo("");
 
+/**
+ * Semelhança de artigos (Jaccard) a partir da qual o detalhe avisa que a
+ * edição é provavelmente repetida. Calibrado sobre os dados reais de 29/09 a
+ * 15/10 (`scripts/calibrar-artigos.ts`): as edições requentadas conhecidas
+ * deram 0,86 (maxima-geral 02/10) e 0,71 (flash-mundo 04/10); a edição
+ * legítima mais parecida com a anterior deu 0,67 (negocios-tecnologia).
+ * Abaixo de 1 o código NÃO muda: é só um aviso, a decisão é do dono do produto.
+ */
+export const LIMIAR_ARTIGOS = 0.7;
+
+/**
+ * Mínimo de artigos para que "os mesmos artigos" prove repetição (código 4).
+ * Com um ou dois links, coincidir pode ser acaso — um destaque fixo.
+ */
+export const MIN_ARTIGOS = 3;
+
 const NOMES_DIAS = [
   "Segunda-feira",
   "Terça-feira",
@@ -28,11 +44,14 @@ const NOMES_DIAS = [
 export interface Ocorrencia {
   recebidoEm: Date;
   hash: string;
+  /** Artigos para onde a edição aponta (`extrairArtigos`). */
+  artigos?: string[];
 }
 
 export interface EdicaoAnterior {
   data: string;
   hash: string;
+  artigos?: string[];
 }
 
 export interface Contexto {
@@ -58,6 +77,11 @@ export interface Resultado {
    * não prova "conteúdo atualizado". Não muda o código.
    */
   semComparacao?: boolean;
+  /**
+   * Hash diferente, mas a maioria dos artigos (Jaccard ≥ LIMIAR_ARTIGOS, < 1)
+   * é a da edição anterior. Só aviso no detalhe: não muda o código.
+   */
+  provavelmenteRepetida?: boolean;
 }
 
 /** Hoje é dia de envio para esta newsletter? */
@@ -160,29 +184,58 @@ export function classificar(ctx: Contexto): Resultado {
 
   // Um corpo vazio dá sempre o mesmo hash; comparar com ele produziria código 4
   // falso em todas as edições sem corpo legível.
-  const comparavel =
-    ctx.edicaoAnterior !== null &&
+  const anterior = ctx.edicaoAnterior;
+  const comparavelHash =
+    anterior !== null &&
     primeira.hash !== "" &&
     primeira.hash !== HASH_VAZIO &&
-    ctx.edicaoAnterior.hash !== HASH_VAZIO;
+    anterior.hash !== HASH_VAZIO;
+  const hashIgual = comparavelHash && anterior!.hash === primeira.hash;
 
-  const repetido = comparavel && ctx.edicaoAnterior!.hash === primeira.hash;
+  // Os artigos: o hash só apanha cópias exatas; a edição de ontem com mais um
+  // bloco tem hash diferente. Exatamente os mesmos artigos (com um mínimo de
+  // MIN_ARTIGOS) prova repetição; a maioria iguais só fica como aviso.
+  // O assunto nunca conta como prova: repete-se em edições legítimas.
+  const sem = anterior ? semelhancaArtigos(primeira.artigos ?? [], anterior.artigos ?? []) : null;
+  const artigosIguais = sem !== null && sem.jaccard === 1 && sem.total >= MIN_ARTIGOS;
+  const provavelmenteRepetida =
+    !hashIgual && !artigosIguais && sem !== null && sem.jaccard >= LIMIAR_ARTIGOS;
+
+  const comparavel = comparavelHash || artigosIguais;
+  const repetido = hashIgual || artigosIguais;
+  const diaAnterior = anterior ? diaMes(anterior.data) : "";
 
   const fraseConteudo = !comparavel
     ? "Sem edição anterior comparável."
-    : repetido
-      ? `Hash igual ao da edição de ${diaMes(ctx.edicaoAnterior!.data)} → conteúdo repetido.`
-      : `Hash diferente da edição de ${diaMes(ctx.edicaoAnterior!.data)} → conteúdo novo.`;
+    : hashIgual
+      ? `Hash igual ao da edição de ${diaAnterior} → conteúdo repetido.`
+      : artigosIguais
+        ? `Os mesmos ${sem!.total} artigos da edição de ${diaAnterior} → conteúdo repetido.`
+        : provavelmenteRepetida
+          ? `Hash diferente da edição de ${diaAnterior}, mas ⚠ provavelmente repetida: ` +
+            `${sem!.iguais} de ${sem!.total} artigos iguais à edição anterior.`
+          : `Hash diferente da edição de ${diaAnterior} → conteúdo novo.`;
 
-  const base = { horaRecebida, atrasoMinutos, nrOcorrencias, semComparacao: !comparavel };
+  const base = {
+    horaRecebida,
+    atrasoMinutos,
+    nrOcorrencias,
+    semComparacao: !comparavel,
+    ...(provavelmenteRepetida ? { provavelmenteRepetida: true } : {}),
+  };
 
   // ── 3: dois envios distintos na mesma janela ────────────────────────────
   if (nrOcorrencias >= 2) {
     const horas = ordenadas.map((o) => horaLocal(o.recebidoEm)).join(", ");
+    // O 3 tem precedência, mas um primeiro envio requentado não pode passar
+    // em silêncio (maxima-geral 02/10: a edição de ontem e, 30 min depois, a
+    // correção do próprio editor).
+    const conteudoPrimeiro =
+      repetido || provavelmenteRepetida ? ` 1.º envio: ${fraseConteudo}` : "";
     return {
       ...base,
       codigo: 3,
-      detalhe: `${nrOcorrencias} envios distintos no mesmo dia (${horas}) → Duplicada. ${fraseJanela}`,
+      detalhe: `${nrOcorrencias} envios distintos no mesmo dia (${horas}) → Duplicada. ${fraseJanela}${conteudoPrimeiro}`,
     };
   }
 
