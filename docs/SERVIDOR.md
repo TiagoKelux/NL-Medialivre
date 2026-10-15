@@ -9,7 +9,8 @@ PC. Esta é a montagem e o porquê de cada peça.
 | Cloudflare Tunnel | O painel fica acessível por um endereço próprio sem abrir portas no servidor |
 | Cloudflare Access | Só entram os emails autorizados — o painel mostra conteúdo de newsletters pagas |
 | `HEALTHCHECK_URL` (healthchecks.io) | Se o monitor parar ou a leitura falhar, chega um email — um monitor parado não se pode avisar a si próprio |
-| `/api/saude` | Estado em JSON (200 / 503), para qualquer verificação externa |
+| `/api/saude` | Estado em JSON (200 / 503), público e mínimo, para qualquer verificação externa |
+| `/api/estado` | O mesmo 200/503 com o detalhe (erro da leitura, caixa por editor) — atrás da autenticação |
 | Cópia diária às 03h30 | 30 cópias da base de dados em `data/copias`, e uma cópia fora do servidor |
 | Atualizações automáticas + firewall | Só SSH entra; correções de segurança aplicam-se sozinhas |
 
@@ -39,3 +40,7 @@ ssh root@SERVIDOR "sudo -u monitor bash -lc 'cd /opt/nwl && npm ci && npm test &
 ```
 
 Os testes correm antes do build: se falharem, o monitor em produção fica como estava.
+
+Quando muda o `ecosystem.config.cjs` (por exemplo os `args`, que põem o Next a
+ouvir só em `127.0.0.1`), o `pm2 restart` não o relê: é preciso
+`pm2 delete media-livre-monitor && pm2 start ecosystem.config.cjs && pm2 save`.

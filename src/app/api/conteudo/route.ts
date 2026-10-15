@@ -1,6 +1,7 @@
 import { newsletterPorId } from "../../../../config/newsletters.ts";
 import { emailDoDia, registoDe } from "../../../lib/registos.ts";
-import { construirFicheiro, markdownParaHtml } from "../../../lib/markdown.ts";
+import { construirFicheiro, escaparHtml, markdownParaHtml } from "../../../lib/markdown.ts";
+import { CABECALHOS_CONTEUDO } from "../../../lib/seguranca.ts";
 import { horaLocal } from "../../../lib/tempo.ts";
 import { DESIGNACOES, type CodigoEstado } from "../../../lib/tipos.ts";
 
@@ -56,6 +57,7 @@ export function GET(pedido: Request) {
       headers: {
         "Content-Type": "text/markdown; charset=utf-8",
         "Content-Disposition": `attachment; filename="${nomeFicheiro}"`,
+        "X-Content-Type-Options": "nosniff",
         "Cache-Control": "no-store",
       },
     });
@@ -63,8 +65,7 @@ export function GET(pedido: Request) {
 
   // O frontmatter é contexto para o ficheiro, não para a leitura no ecrã.
   const semFrontmatter = md.replace(/^---[\s\S]*?\n---\n/, "");
-  const escapar = (s: string) =>
-    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const escapar = escaparHtml;
 
   const pagina = `<!doctype html>
 <html lang="pt-PT"><head><meta charset="utf-8">
@@ -101,7 +102,5 @@ export function GET(pedido: Request) {
 ${markdownParaHtml(semFrontmatter)}
 </div></body></html>`;
 
-  return new Response(pagina, {
-    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
-  });
+  return new Response(pagina, { headers: { ...CABECALHOS_CONTEUDO } });
 }

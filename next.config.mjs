@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  /** Sem `X-Powered-By: Next.js`: não se anuncia o que corre por trás. */
+  poweredByHeader: false,
   /**
    * Pacotes que têm de ser carregados pelo Node em tempo de execução, não
    * empacotados:

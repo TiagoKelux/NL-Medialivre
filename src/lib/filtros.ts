@@ -9,6 +9,20 @@ export const TODAS = "todas";
 
 const NOMES_DIAS = ["2ª", "3ª", "4ª", "5ª", "6ª", "Sábado", "Domingo"];
 
+/** Todas as chaves de filtro que existem, para validar o que vem no URL. */
+export const CHAVES_FILTRO: readonly string[] = [
+  TODAS,
+  "diaria",
+  "dias_uteis",
+  "dia_mes",
+  "nao_agendada",
+  ...[1, 2, 3, 4, 5, 6, 7].map((d) => `dia:${d}`),
+];
+
+export function ehFiltro(v: unknown): v is string {
+  return typeof v === "string" && CHAVES_FILTRO.includes(v);
+}
+
 /** As chaves de filtro a que uma newsletter pertence. */
 export function chavesDe(c: Pick<Newsletter, "periodicidade" | "diasSemana">): string[] {
   switch (c.periodicidade) {

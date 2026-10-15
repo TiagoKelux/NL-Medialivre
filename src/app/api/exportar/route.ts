@@ -1,8 +1,8 @@
 import { NEWSLETTERS, estaConfigurada, newsletterPorId } from "../../../../config/newsletters.ts";
 import { db } from "../../../lib/db.ts";
 import { construirXlsx, type Valor } from "../../../lib/excel.ts";
-import { calcularPeriodo, diasDoPeriodo, ehVista } from "../../../lib/periodo.ts";
-import { chavesDe } from "../../../lib/filtros.ts";
+import { calcularPeriodo, diasDoPeriodo, ehData, ehVista } from "../../../lib/periodo.ts";
+import { TODAS, chavesDe, ehFiltro } from "../../../lib/filtros.ts";
 import { dataLocal, diaMes, horaLocal } from "../../../lib/tempo.ts";
 import { DESIGNACOES, type CodigoEstado, type Registo } from "../../../lib/tipos.ts";
 import { ROTULO, variante } from "../../../lib/apresentacao.ts";
@@ -23,14 +23,23 @@ export function GET(pedido: Request) {
 
   const pedida = url.searchParams.get("vista");
   const vista = ehVista(pedida) ? pedida : "mensal";
-  const ancora = url.searchParams.get("ate") ?? hoje;
-  const filtro = url.searchParams.get("filtro") ?? "todas";
+  // Uma data que não existe volta a hoje; um filtro desconhecido é recusado
+  // (exportar tudo em silêncio seria dar outra coisa do que foi pedido).
+  const pedidaAte = url.searchParams.get("ate");
+  const ancora = ehData(pedidaAte) ? pedidaAte : hoje;
+  const filtro = url.searchParams.get("filtro") ?? TODAS;
+  if (!ehFiltro(filtro)) {
+    return new Response("Filtro desconhecido.", {
+      status: 400,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
 
   const periodo = calcularPeriodo(vista, ancora, hoje);
   const dias = diasDoPeriodo(periodo, hoje);
 
   const newsletters = NEWSLETTERS.filter(
-    (n) => filtro === "todas" || chavesDe(n).includes(filtro),
+    (n) => filtro === TODAS || chavesDe(n).includes(filtro),
   );
   const ids = new Set(newsletters.map((n) => n.id));
 

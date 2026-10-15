@@ -230,15 +230,60 @@ export function construirFicheiro(c: Cabecalho, corpoHtml: string): string {
   return partes.join("\n") + htmlParaMarkdown(corpoHtml) + "\n";
 }
 
-/** Markdown → HTML, o mínimo para se ler a newsletter no browser. */
-export function markdownParaHtml(md: string): string {
-  const escapar = (s: string) =>
-    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+/** Escapa texto para HTML, incluindo aspas: serve para conteúdo e para atributos. */
+export function escaparHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
+function desescaparHtml(s: string): string {
+  return s
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, "<")
+    .replace(/&amp;/g, "&");
+}
+
+/** Os `*` dentro de atributos não podem ser apanhados pelo negrito/itálico. */
+const emAtributo = (s: string) => s.replace(/\*/g, "&#42;");
+
+/**
+ * Só endereços http(s) que o `URL` aceita vão para um `href`/`src`. Tudo o
+ * resto (`javascript:`, `data:`, relativos, lixo) devolve null e o chamador
+ * mostra só o texto. O resultado já vem escapado para ir dentro de aspas.
+ */
+function urlSegura(escapado: string): string | null {
+  try {
+    const u = new URL(desescaparHtml(escapado));
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return emAtributo(escaparHtml(u.href));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Markdown → HTML, o mínimo para se ler a newsletter no browser.
+ *
+ * O conteúdo vem de terceiros (o corpo e o assunto do email) e é servido na
+ * origem do painel: tudo é escapado, aspas incluídas, e só passam URLs http(s).
+ */
+export function markdownParaHtml(md: string): string {
   const embutido = (s: string) =>
-    escapar(s)
-      .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img src="$2" alt="$1">')
-      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    escaparHtml(s)
+      .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_, alt: string, url: string) => {
+        const u = urlSegura(url);
+        return u ? `<img src="${u}" alt="${emAtributo(alt)}">` : alt;
+      })
+      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, rotulo: string, url: string) => {
+        const u = urlSegura(url);
+        return u ? `<a href="${u}" target="_blank" rel="noopener noreferrer">${rotulo}</a>` : rotulo;
+      })
       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
       .replace(/\*([^*]+)\*/g, "<em>$1</em>");
 

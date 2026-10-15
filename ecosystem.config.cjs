@@ -4,7 +4,8 @@ module.exports = {
     {
       name: "media-livre-monitor",
       script: "node_modules/next/dist/bin/next",
-      args: "start --port 3001",
+      // Só em localhost: de fora, entra-se pelo Caddy (HTTPS e palavra-passe).
+      args: "start --port 3001 -H 127.0.0.1",
       cwd: __dirname,
       instances: 1,
       // Processo único: os jobs correm dentro deste processo (§9).

@@ -112,9 +112,11 @@ diária desse domínio. Com 2 ou mais, o domínio entra em `caixaCortada`:
                    "ultimaEdicao": "2026-10-05T10:05:48.000Z", "diasEsperadosSemEdicao": 10 }]
 ```
 
-Vem no `/api/saude` (campos `caixa` e `caixaCortada`) **sem mexer no
-200/503**, que continua a depender só da leitura — é disso que a verificação
-externa precisa. O ciclo escreve no log uma linha `CAIXA CORTADA …` quando a
+Vem no `/api/estado` (campos `caixa` e `caixaCortada`, atrás da
+palavra-passe do painel) **sem mexer no 200/503**, que continua a depender só
+da leitura — é disso que a verificação externa precisa. O `/api/saude` é
+público e só traz `saudavel`, `ultimaLeitura`, `minutosDesdeLeitura` e
+`falha` (um código genérico, `"leitura_falhou"`, nunca o erro em bruto). O ciclo escreve no log uma linha `CAIXA CORTADA …` quando a
 lista muda (e `Caixa normalizada` quando esvazia), sem serviços externos.
 Um domínio de que nunca chegou nenhuma diária não conta: não há prova de que
 a caixa estivesse inscrita.
@@ -324,7 +326,9 @@ src/lib/
   marcas.ts               marcas do corpo extraídas à entrada (emails.marcas)
   prova.ts                prova de ausência (quando "nada chegou" é "Não Saiu")
   caixa.ts                caixa cortada pelo editor (dias sem diárias por domínio)
-  saude.ts                o que o /api/saude devolve
+  saude.ts                o que o /api/saude (público) e o /api/estado devolvem
+  seguranca.ts            CSP das páginas com HTML de terceiros, limpeza do
+                          HTML dos emails, recusa de pedidos de outra origem
   classificacao.ts        o motor de estados, função pura (§4, §7)
   registos.ts             gerar o dia, reavaliar, fechar, ler para a página
   recolha.ts              gravar emails com deduplicação (§6)
@@ -337,6 +341,8 @@ src/app/
   api/arranque/route.ts   onde os jobs node-cron são registados
   api/ciclo/route.ts      disparo manual do ciclo
   api/gerar-dia/route.ts  disparo manual do job das 00h05
+  api/estado/route.ts     estado em detalhe (erro da leitura, caixa por editor)
+src/middleware.ts         recusa POST/PUT/… vindos de outra origem (CSRF)
 src/components/Painel.tsx a grelha, a matriz semanal e o painel de detalhe
 src/instrumentation.ts    arranque — sem imports, ver nota abaixo
 scripts/importar-horario.ts  gera a config a partir do Excel

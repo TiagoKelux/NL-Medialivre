@@ -3,7 +3,7 @@ import { PAGAS } from "../../config/pagas.ts";
 import { estadoLeitura } from "../lib/leitura.ts";
 import { garantirDias, grelhaDoDia, matriz } from "../lib/registos.ts";
 import { contarPorClassificar } from "../lib/regras.ts";
-import { calcularPeriodo, diasDoPeriodo, ehVista } from "../lib/periodo.ts";
+import { calcularPeriodo, diasDoPeriodo, ehData, ehVista } from "../lib/periodo.ts";
 import {
   dataLocal,
   diaMes,
@@ -37,9 +37,7 @@ export default async function Pagina({
 
   const pedida = typeof params.vista === "string" ? params.vista : null;
   const vista = ehVista(pedida) ? pedida : "diaria";
-  const ancora = typeof params.ate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(params.ate)
-    ? params.ate
-    : hoje;
+  const ancora = ehData(params.ate) ? params.ate : hoje;
 
   const periodo = calcularPeriodo(vista, ancora, hoje);
   const dias = diasDoPeriodo(periodo, hoje);
