@@ -4,8 +4,9 @@ import type { Newsletter } from "../src/lib/tipos.ts";
  * GERADO por `npm run importar` a partir da folha "Horário" do Excel.
  *
  * Não editar as periodicidades nem as horas à mão — mexer no Excel e voltar a
- * correr o importador. Os campos `remetentes` e `padraoAssunto` são a
- * exceção: não estão no Excel, escrevem-se aqui e o importador preserva-os.
+ * correr o importador. Os campos `remetentes`, `padraoRemetente`,
+ * `padraoAssunto` e `marcaCorpo` são a exceção: não estão no Excel,
+ * escrevem-se aqui e o importador preserva-os.
  *
  * 62 newsletters, 48 ativas.
  */
@@ -21,8 +22,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "06:00",
     toleranciaMinutos: 60,
     remetentes: ["info@news.correiodamanha.pt"],
-    padraoRemetente: "Exclusivos",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/CORREIODAMANHA_MASTHEAD/NEWSLETTER_EXCLUSIVOS_LEADERBOARD",
     ativa: true,
   },
   // Automático
@@ -38,6 +40,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Gerido
@@ -53,6 +56,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Gerido
@@ -66,8 +70,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "07:00",
     toleranciaMinutos: 60,
     remetentes: ["info@news.flash.pt"],
-    padraoRemetente: "FLASH! Weekend",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/FLASH_MASTHEAD/NEWSLETTER_WEEKEND_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -81,8 +86,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "08:00",
     toleranciaMinutos: 60,
     remetentes: ["info@news.jornaldenegocios.pt"],
-    padraoRemetente: "5 Coisas a Saber",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/JORNALDENEGOCIOS_MASTHEAD/NEWSLETTER_5_COISAS_A_SABER_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -98,6 +104,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Gerido
@@ -111,8 +118,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "08:00",
     toleranciaMinutos: 60,
     remetentes: ["info@news.flash.pt"],
-    padraoRemetente: "FLASH! Mundo",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/FLASH_MASTHEAD/NEWSLETTER_MUNDO_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -126,8 +134,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "09:00",
     toleranciaMinutos: 60,
     remetentes: ["info@news.jornalrecord.pt"],
-    padraoRemetente: "Record Geral",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/RECORD_MASTHEAD/NEWSLETTER_GERAL_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -143,6 +152,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Gerido
@@ -156,8 +166,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "09:00",
     toleranciaMinutos: 60,
     remetentes: ["info@news.maxima.pt"],
-    padraoRemetente: "Máxima",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/MAXIMA_MASTHEAD/NEWSLETTER_GERAL_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -173,6 +184,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Gerido
@@ -188,6 +200,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Gerido
@@ -203,6 +216,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: false,
   },
   // Gerido
@@ -218,6 +232,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Gerido
@@ -233,6 +248,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Automática
@@ -246,8 +262,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "10:00",
     toleranciaMinutos: 60,
     remetentes: ["info@news.correiodamanha.pt"],
-    padraoRemetente: "Correio da Manhã Bom dia",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/CORREIODAMANHA_MASTHEAD/NEWSLETTER_BOMDIA_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -263,6 +280,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Gerido
@@ -276,8 +294,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "10:00",
     toleranciaMinutos: 60,
     remetentes: ["info@news.flash.pt"],
-    padraoRemetente: "Bom dia",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/FLASH_MASTHEAD/NEWSLETTER_BOMDIA_LEADERBOARD",
     ativa: true,
   },
   // Automátivo
@@ -293,6 +312,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: ["info@news.correiodamanha.pt"],
     padraoRemetente: "Vidas Geral",
     padraoAssunto: "",
+    marcaCorpo: "www.cmjornal.pt/i/newsletters/logo.png",
     ativa: true,
   },
   // Gerido
@@ -308,6 +328,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Automático
@@ -323,6 +344,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: false,
   },
   // Automático
@@ -338,6 +360,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Automático
@@ -351,8 +374,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "10:30",
     toleranciaMinutos: 60,
     remetentes: ["info@news.jornaldenegocios.pt"],
-    padraoRemetente: "Abertura",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/JORNALDENEGOCIOS_MASTHEAD/NEWSLETTER_ABERTURA_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -366,8 +390,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "11:00",
     toleranciaMinutos: 60,
     remetentes: ["info@news.jornalrecord.pt"],
-    padraoRemetente: "Record Sporting",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/RECORD_MASTHEAD/NEWSLETTER_SPORTING_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -381,8 +406,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "11:00",
     toleranciaMinutos: 60,
     remetentes: ["info@news.jornalrecord.pt"],
-    padraoRemetente: "Record Porto",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/RECORD_MASTHEAD/NEWSLETTER_FCPORTO_LEADERBOARD",
     ativa: true,
   },
   // Automático
@@ -395,9 +421,10 @@ export const NEWSLETTERS: Newsletter[] = [
     diasMes: null,
     horaPrevista: "11:00",
     toleranciaMinutos: 60,
-    remetentes: [],
+    remetentes: ["info@news.jornaldenegocios.pt"],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/JORNALDENEGOCIOS_MASTHEAD/NEWSLETTER_FINANCAS_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -413,6 +440,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: false,
   },
   // Gerido
@@ -428,6 +456,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Gerido
@@ -443,6 +472,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Gerido
@@ -456,8 +486,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "11:45",
     toleranciaMinutos: 60,
     remetentes: ["info@news.jornalrecord.pt"],
-    padraoRemetente: "Record Benfica",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/RECORD_MASTHEAD/NEWSLETTER_BENFICA_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -473,6 +504,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: false,
   },
   // Automático
@@ -486,8 +518,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "12:00",
     toleranciaMinutos: 60,
     remetentes: ["info@news.jornaldenegocios.pt"],
-    padraoRemetente: "Opinião do Dia",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/JORNALDENEGOCIOS_MASTHEAD/NEWSLETTER_OPINIAO_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -500,9 +533,10 @@ export const NEWSLETTERS: Newsletter[] = [
     diasMes: null,
     horaPrevista: "12:00",
     toleranciaMinutos: 60,
-    remetentes: [],
+    remetentes: ["info@news.maxima.pt"],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/MAXIMA_MASTHEAD/NEWSLETTER_FIM_DE_SEMANA_LEADERBOARD",
     ativa: true,
   },
   // horário em aberto no Excel ("12h ou 18h"); tolerância alargada até 18:00 + 1 h
@@ -519,6 +553,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Gerido
@@ -531,9 +566,10 @@ export const NEWSLETTERS: Newsletter[] = [
     diasMes: null,
     horaPrevista: "13:00",
     toleranciaMinutos: 60,
-    remetentes: [],
+    remetentes: ["info@news.flash.pt"],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/FLASH_MASTHEAD/NEWSLETTER_THEMAG_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -549,6 +585,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: false,
   },
   // Automático
@@ -561,9 +598,10 @@ export const NEWSLETTERS: Newsletter[] = [
     diasMes: null,
     horaPrevista: "14:00",
     toleranciaMinutos: 60,
-    remetentes: [],
+    remetentes: ["info@news.jornaldenegocios.pt"],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/JORNALDENEGOCIOS_MASTHEAD/NEWSLETTER_INVPRIVADO_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -579,6 +617,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Gerido
@@ -592,8 +631,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "15:00",
     toleranciaMinutos: 60,
     remetentes: ["info@news.flash.pt"],
-    padraoRemetente: "Moda & Beleza",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/FLASH_MASTHEAD/NEWSLETTER_MODABELEZA_LEADERBOARD",
     ativa: true,
   },
   // Automático
@@ -607,8 +647,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "15:00",
     toleranciaMinutos: 60,
     remetentes: ["info@news.jornaldenegocios.pt"],
-    padraoRemetente: "Tecnologia",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/JORNALDENEGOCIOS_MASTHEAD/NEWSLETTER_TECNOLOGIA_LEADERBOARD",
     ativa: true,
   },
   // Automático
@@ -624,6 +665,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Automático
@@ -639,6 +681,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // estado por confirmar no Excel (coluna dizia "vazio")
@@ -655,6 +698,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: false,
   },
   // Automática
@@ -670,6 +714,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // estado por confirmar no Excel (coluna dizia "37")
@@ -685,6 +730,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: false,
   },
   // estado por confirmar no Excel (coluna dizia "37")
@@ -700,6 +746,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: false,
   },
   // horário em aberto no Excel ("16h30 // 17h"); tolerância alargada até 17:00 + 1 h
@@ -714,8 +761,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "16:30",
     toleranciaMinutos: 90,
     remetentes: ["info@assinaturas.jornaldenegocios.pt"],
-    padraoRemetente: "MUST",
+    padraoRemetente: "Negócios Premium - MUST",
     padraoAssunto: "",
+    marcaCorpo: "www.must.jornaldenegocios.pt/i/newsletters/logo.png",
     ativa: true,
   },
   // Automático
@@ -731,6 +779,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Automática
@@ -746,6 +795,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Automático
@@ -758,9 +808,10 @@ export const NEWSLETTERS: Newsletter[] = [
     diasMes: null,
     horaPrevista: "17:00",
     toleranciaMinutos: 60,
-    remetentes: [],
+    remetentes: ["info@news.jornaldenegocios.pt"],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/JORNALDENEGOCIOS_MASTHEAD/NEWSLETTER_LEX_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -776,6 +827,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Automático
@@ -791,6 +843,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: false,
   },
   // Automática
@@ -804,8 +857,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "19:00",
     toleranciaMinutos: 60,
     remetentes: ["info@news.correiodamanha.pt"],
-    padraoRemetente: "Boa tarde",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/CORREIODAMANHA_MASTHEAD/NEWSLETTER_BOATARDE_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -821,6 +875,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: false,
   },
   // Automático
@@ -834,8 +889,9 @@ export const NEWSLETTERS: Newsletter[] = [
     horaPrevista: "18:30",
     toleranciaMinutos: 60,
     remetentes: ["info@news.jornaldenegocios.pt"],
-    padraoRemetente: "Fecho",
+    padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/JORNALDENEGOCIOS_MASTHEAD/NEWSLETTER_FECHO_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -848,9 +904,10 @@ export const NEWSLETTERS: Newsletter[] = [
     diasMes: null,
     horaPrevista: "20:00",
     toleranciaMinutos: 60,
-    remetentes: [],
+    remetentes: ["info@news.jornaldenegocios.pt"],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "/4196/JORNALDENEGOCIOS_MASTHEAD/NEWSLETTER_SUASEMANA_LEADERBOARD",
     ativa: true,
   },
   // Gerido
@@ -866,6 +923,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: false,
   },
   // Automático
@@ -881,6 +939,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
   // Excel diz "Mensal" sem dia nem hora
@@ -898,6 +957,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: false,
   },
   // sai a qualquer dia/hora
@@ -915,6 +975,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: false,
   },
   // Excel diz "Mensal" sem dia nem hora
@@ -932,6 +993,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: false,
   },
   // Gerido
@@ -947,6 +1009,7 @@ export const NEWSLETTERS: Newsletter[] = [
     remetentes: [],
     padraoRemetente: "",
     padraoAssunto: "",
+    marcaCorpo: "",
     ativa: true,
   },
 ];
@@ -957,12 +1020,15 @@ export function newsletterPorId(id: string): Newsletter | undefined {
 
 /**
  * Uma newsletter está configurada quando já sabe reconhecer os seus emails:
- * um endereço, e pelo menos um padrão que a distinga das outras que chegam do
- * mesmo endereço — o nome do remetente ou um pedaço fixo do assunto.
+ * um endereço, e pelo menos um critério que a distinga das outras que chegam
+ * do mesmo endereço — a marca no corpo, o nome do remetente ou um pedaço fixo
+ * do assunto.
  */
 export function estaConfigurada(n: Newsletter): boolean {
   return (
     n.remetentes.length > 0 &&
-    (n.padraoRemetente.trim() !== "" || n.padraoAssunto.trim() !== "")
+    (n.marcaCorpo.trim() !== "" ||
+      n.padraoRemetente.trim() !== "" ||
+      n.padraoAssunto.trim() !== "")
   );
 }

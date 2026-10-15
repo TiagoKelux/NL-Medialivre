@@ -32,10 +32,10 @@ console.log(`  Assunto   : ${email.assunto}`);
 console.log(`  Recebido  : ${dia} às ${horaLocal(email.data)} (hora de Lisboa)`);
 console.log(`  Corpo     : ${email.corpoHtml.length} caracteres de HTML`);
 
-const n = corresponder(email.remetente, email.assunto);
+const n = corresponder(email.remetente, email.assunto, email.corpoHtml);
 if (!n) {
   console.log("\nNenhuma newsletter configurada reconhece este email.");
-  console.log("Preenche `remetentes` e `padraoRemetente`/`padraoAssunto` em config/newsletters.ts.");
+  console.log("Preenche `remetentes` e `marcaCorpo` (ou `padraoRemetente`/`padraoAssunto`) em config/newsletters.ts.");
 }
 
 const { normalizado, hash } = processarCorpo(email.corpoHtml);

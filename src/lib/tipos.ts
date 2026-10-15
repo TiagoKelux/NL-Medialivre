@@ -54,13 +54,21 @@ export interface Newsletter {
   /** Enderecos aceites. Uma entrada que comece por @ vale para o dominio. */
   remetentes: string[];
   /**
-   * Pedaco do NOME do remetente ("FLASH! Bom dia"). Necessario quando varias
+   * NOME do remetente, por inteiro ("FLASH! Bom dia"); compara-se sem
+   * distincao de maiusculas, nunca por pedaco. Necessario quando varias
    * newsletters partilham o mesmo endereco e o assunto e a manchete do dia,
    * portanto muda sempre. Opcional.
    */
   padraoRemetente: string;
   /** Pedaco fixo do assunto. Opcional. */
   padraoAssunto: string;
+  /**
+   * Texto que so as edicoes desta newsletter trazem no HTML: o bloco de
+   * publicidade "/4196/<MARCA>_MASTHEAD/NEWSLETTER_<NOME>_LEADERBOARD", ou o
+   * logotipo proprio quando nao ha bloco. Quando preenchido e obrigatorio: e o
+   * que separa a edicao do marketing que sai do mesmo remetente.
+   */
+  marcaCorpo: string;
   ativa: boolean;
 }
 
@@ -87,4 +95,14 @@ export interface Registo {
   nr_ocorrencias: number;
   detalhe: string;
   fechado: 0 | 1;
+  /**
+   * Ressalva ao código, sem o mudar (o CHECK só aceita 1 a 6):
+   * - "sem-prova": 5 com a hora limite passada mas sem prova de ausência
+   *   (`motivosSemProva`) — mostra-se "Não recebida – sem prova";
+   * - "sem-comparacao": 1 sem edição anterior comparável — chegou, mas o
+   *   "conteúdo atualizado" não está provado.
+   */
+  ressalva: Ressalva | null;
 }
+
+export type Ressalva = "sem-prova" | "sem-comparacao";

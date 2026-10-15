@@ -21,12 +21,46 @@ código de 1 a 6 e mostra tudo numa página.
 | 2 | Saiu Atrasada | Chegou depois de `horaPrevista + toleranciaMinutos` |
 | 3 | Saiu Duplicada | Dois emails distintos na mesma janela |
 | 4 | Saiu com Conteúdo Desatualizado | Hash do texto normalizado igual ao da edição anterior |
-| 5 | Não Saiu | Fechou o dia e não chegou nada |
+| 5 | Não Saiu | Fechou o dia e não chegou nada — só com prova de ausência (ver abaixo) |
 | 6 | Desativada / Não agendada | `ativa: false`, ou hoje não é dia esperado |
 
 Precedência, do mais grave para o menos: **6 → 5 → 3 → 4 → 2 → 1**. O 6 avalia-se
 primeiro e faz curto-circuito. O `codigo_estado` tem um `CHECK (BETWEEN 1 AND 6)`
 na base de dados: é impossível gravar outra coisa.
+
+### Prova de ausência
+
+Um registo só fecha como **5 — Não Saiu** quando há prova de que a newsletter
+não chegou: "a caixa foi lida e não veio nada" não chega (os editores cortam o
+envio a caixas inativas). Sem prova fica em aberto (`fechado = 0`) e o painel
+e o Excel mostram-no como **Por confirmar** (falta a leitura) ou **Não
+recebida – sem prova** (ressalva `sem-prova`), ou **Não assinada no email** se
+não tiver remetente, com o detalhe a dizer porquê. A prova exige
+(`src/lib/prova.ts`):
+
+1. uma leitura bem-sucedida da caixa depois do limite (mais 10 min de margem),
+   com a cobertura contínua das leituras a abranger toda a janela da edição;
+2. remetentes configurados;
+3. pelo menos um email da newsletter recebido **antes** desse dia (prova de
+   que a caixa está inscrita);
+4. nenhum email por atribuir, na janela da edição, que possa ser dela — do
+   mesmo remetente configurado, ou com a marca e o nome (ou o padrão do
+   remetente) no nome ou no assunto. O mesmo domínio com outro endereço não
+   conta, para o marketing de assinaturas não travar as gratuitas da marca;
+5. um **canário**: outro email do mesmo remetente (endereço ou domínio)
+   chegou nas 24 h depois do limite;
+6. nenhum email de reconquista ("Queremos garantir que continua connosco",
+   "Notámos que há algum tempo…") do mesmo domínio nos 30 dias anteriores;
+7. menos de 3 edições seguidas em falta (2 nas semanais e mensais).
+
+As pagas (`config/pagas.ts`) estão isentas de 2 a 7: a caixa não está inscrita
+nelas de propósito e o 5 delas é o grupo de controlo do motor — mostram-se
+como **5 Não Saiu (controlo)**, mesmo sem remetente.
+
+Um 1 sem edição anterior comparável mostra-se como **Saiu (sem termo de
+comparação)** (ressalva `sem-comparacao`): chegou, mas "conteúdo atualizado"
+não está provado. As ressalvas vivem na coluna `registos.ressalva`; o
+`codigo_estado` e o seu CHECK não mudam.
 
 ## Arrancar
 
@@ -90,8 +124,8 @@ como prevista e alarga-se a tolerância até cobrir a mais tarde.
 
 ### Preencher os remetentes
 
-O Excel não tem esta informação. Os campos `remetentes` e
-`padraoAssunto` começam vazios e são o único bloqueio: não estão no Excel e têm
+O Excel não tem esta informação. Os campos `remetentes`, `marcaCorpo`,
+`padraoRemetente` e `padraoAssunto` começam vazios e são o único bloqueio: não estão no Excel e têm
 de vir de emails reais. Enquanto estiverem vazios, o sistema **recolhe e guarda**
 os emails mas não os classifica, e a página mostra um aviso.
 
@@ -104,9 +138,63 @@ npm run listar    # imprime remetente + assunto das últimas 24 h, sem gravar
 Depois de preencher, os emails já guardados são reclassificados
 automaticamente no ciclo seguinte — o histórico não se perde.
 
-Uma entrada de `remetentes` que comece por `@` vale para todo o domínio
-(`@exemplo.pt`). O `padraoAssunto` é uma correspondência por conteúdo, sem
-distinção de maiúsculas.
+Cada newsletter reconhece-se por:
+
+| Campo | O que é |
+|---|---|
+| `remetentes` | Endereços aceites. Uma entrada que comece por `@` vale para todo o domínio (`@exemplo.pt`) |
+| `marcaCorpo` | Texto que **só as edições** desta newsletter trazem no HTML. É o critério principal (ver abaixo) |
+| `padraoRemetente` | Nome do remetente **por inteiro** ("Vidas Geral"), sem distinção de maiúsculas, nunca por pedaço |
+| `padraoAssunto` | Pedaço fixo do assunto, sem distinção de maiúsculas |
+
+O endereço tem de bater, e todos os outros campos preenchidos também.
+
+**Porque é que o corpo manda.** As newsletters de cada marca partilham o
+endereço (`info@news.jornaldenegocios.pt`, `info@news.flash.pt`…), o assunto é
+a manchete do dia, e as editoras mandam marketing — boas-vindas, "volte a
+ler-nos", "notámos que não lê" — do **mesmo endereço e com o mesmo nome** de uma
+newsletter verdadeira ("FLASH! Mundo", "Máxima", "Jornal de Negócios Opinião do
+dia", "Correio da Manhã Bom dia"). A Máxima Geral e a Máxima Fim de Semana
+chegam ambas como "Máxima". Endereço e nome não chegam.
+
+O que prova a edição é o bloco de publicidade: toda a edição de CM, Record,
+Negócios, FLASH! e Máxima traz
+`…/gampad/ad?iu=/4196/<MARCA>_MASTHEAD/NEWSLETTER_<NOME>_LEADERBOARD`, e
+nenhum email de marketing o traz. A `marcaCorpo` dessas newsletters é
+`/4196/<MARCA>_MASTHEAD/NEWSLETTER_<NOME>_LEADERBOARD` (a marca conta:
+`NEWSLETTER_BOMDIA` existe na CM e na FLASH!). Vidas e MUST não têm o bloco: a
+marca é o logótipo do cabeçalho, e exige-se também o nome do remetente. Um
+email do remetente certo sem a marca fica **por atribuir** — nunca passa por
+edição.
+
+Para descobrir a marca de uma newsletter nova, procurar `MASTHEAD` no HTML de
+uma edição (coluna `corpo_html` da tabela `emails`). No HTML aparece umas vezes
+com `/` e outras com `%2F`; o matcher aceita as duas.
+
+A lista `ASSUNTOS_NAO_EDICAO` em `src/lib/correspondencia.ts` continua a existir,
+mas só para o painel não mostrar o marketing conhecido em "por classificar" —
+já não é ela que o impede de contar.
+
+**O importador não apaga estes campos.** `npm run importar` volta a escrever
+`config/newsletters.ts`, mas copia `remetentes`, `padraoRemetente`,
+`padraoAssunto` e `marcaCorpo` do ficheiro anterior, newsletter a newsletter,
+pelo `id`. O único caso em que uma regra se perde é o `id` mudar (o nome mudou
+no Excel): o importador lista essas regras no fim, com ATENÇÃO, e sai com erro
+— copiam-se à mão para a entrada nova (o ficheiro anterior está também no git).
+
+**Ficam de propósito sem regra:** as pagas (`config/pagas.ts`), que a caixa não
+assina — são o grupo de controlo e mostram "Não Saiu" —, e os "… Indica"
+(`info@projetos.*`, comércio afiliado, fora de âmbito).
+
+Para confirmar a configuração contra os emails já guardados, só em leitura:
+
+```bash
+npm run verificar [caminho/para/monitor.db]
+```
+
+Mostra quantos emails cabem a cada newsletter, os que ficam sem dono, os de
+marketing ignorados e os que serviriam a mais do que uma regra (tem de ser
+zero).
 
 ## Comandos
 
@@ -118,7 +206,8 @@ distinção de maiúsculas.
 | `npm run listar` | Lista os emails das últimas 24 h na consola, sem gravar |
 | `npm run recolher` | Corre um ciclo de recolha à mão |
 | `npm run migrar` | Cria a base de dados e tapa buracos nos últimos 30 dias |
-| `npm run importar -- <xlsx>` | Regera `config/newsletters.ts` a partir do Excel |
+| `npm run importar -- <xlsx>` | Regera `config/newsletters.ts` a partir do Excel (preserva os remetentes) |
+| `npm run verificar [db]` | Corre a correspondência sobre os emails guardados, só em leitura |
 | `npm run typecheck` | `tsc --noEmit` |
 
 ## Estrutura

@@ -3,7 +3,8 @@ import { fecharVencidos } from "./registos.ts";
 import { intervaloDeBusca } from "./edicao.ts";
 import { temToken } from "./graph/token.ts";
 import { temGmail } from "./gmail/config.ts";
-import { registarLeitura } from "./leitura.ts";
+import { coberturaDesde, registarLeitura } from "./leitura.ts";
+import { dataLocal } from "./tempo.ts";
 import { sinalDeVida } from "./vigia.ts";
 
 /**
@@ -19,17 +20,29 @@ const JANELA_MINIMA_DIAS = 7;
  */
 const JANELA_MAXIMA_DIAS = 45;
 
-/** Início da janela a ler: a semana, ou o registo em aberto mais antigo. */
+/**
+ * Início da janela a ler: a semana, ou o registo em aberto mais antigo cuja
+ * janela ainda não esteja coberta pelas leituras anteriores.
+ *
+ * Os registos em aberto por falta de prova de ausência que não depende da
+ * caixa (sem remetente, nunca recebida, email por atribuir) já estão cobertos
+ * e não alargam a leitura — senão ela ficava nos 45 dias para sempre. Os que
+ * estão fora do máximo também não: nunca chegariam a ser cobertos.
+ */
 function inicioDaLeitura(agora: Date): Date {
   const minima = new Date(agora.getTime() - JANELA_MINIMA_DIAS * 86_400_000);
   const maxima = new Date(agora.getTime() - JANELA_MAXIMA_DIAS * 86_400_000);
-  const maisAntigo = db()
+  const coberta = coberturaDesde();
+  const dias = db()
     .prepare(
-      `SELECT MIN(data_prevista) AS d FROM registos WHERE fechado = 0 AND codigo_estado <> 6`,
+      `SELECT DISTINCT data_prevista AS d FROM registos
+        WHERE fechado = 0 AND codigo_estado <> 6 AND data_prevista >= ?
+        ORDER BY data_prevista ASC`,
     )
-    .get() as { d: string | null };
-  if (!maisAntigo.d) return minima;
-  const precisa = intervaloDeBusca(maisAntigo.d).inicio;
+    .all(dataLocal(maxima)) as { d: string }[];
+  const porCobrir = dias.find((l) => !coberta || intervaloDeBusca(l.d).inicio < coberta);
+  if (!porCobrir) return minima;
+  const precisa = intervaloDeBusca(porCobrir.d).inicio;
   if (precisa >= minima) return minima;
   return precisa < maxima ? maxima : precisa;
 }
@@ -84,7 +97,15 @@ async function ciclo(): Promise<string[]> {
 
   // `agora` é o momento em que a leitura começou: o que chegou depois pode não
   // ter sido visto, por isso não serve de prova.
-  const fechados = fecharVencidos({ ok: agora, desde });
+  // A prova de leitura é a cobertura contínua (sem intervalos por ler), não
+  // só a última leitura. Limitada aos 45 dias para que os registos que nunca
+  // terão prova (sem remetente, nunca recebida) não se reavaliem para sempre.
+  const coberta = coberturaDesde() ?? desde;
+  const limiteAntigo = new Date(agora.getTime() - JANELA_MAXIMA_DIAS * 86_400_000);
+  const fechados = fecharVencidos({
+    ok: agora,
+    desde: coberta > limiteAntigo ? coberta : limiteAntigo,
+  });
   if (fechados > 0) passos.unshift(`${fechados} registo(s) fechado(s)`);
 
   return passos;

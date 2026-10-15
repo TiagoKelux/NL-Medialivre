@@ -1,11 +1,13 @@
 import { db } from "./db.ts";
 import { NEWSLETTERS, newsletterPorId } from "../../config/newsletters.ts";
+import { PAGAS } from "../../config/pagas.ts";
 import { classificar, type EdicaoAnterior, type Ocorrencia } from "./classificacao.ts";
 import { datasNoEmail, fraseData } from "./datas.ts";
 import { dataEdicao, intervaloDeBusca } from "./edicao.ts";
 import { naoEEdicao } from "./correspondencia.ts";
-import { dataLocal, paraInstante, paraIso, somarDias, somarMinutos, ultimosDias } from "./tempo.ts";
-import type { CodigoEstado, Newsletter, Periodicidade, Registo } from "./tipos.ts";
+import { motivosSemProva } from "./prova.ts";
+import { dataLocal, horaLocal, paraInstante, paraIso, somarDias, somarMinutos, ultimosDias } from "./tempo.ts";
+import type { CodigoEstado, Newsletter, Periodicidade, Registo, Ressalva } from "./tipos.ts";
 
 /**
  * Tudo o que cria e atualiza linhas em `registos`.
@@ -153,14 +155,41 @@ export function reavaliar(newsletterId: string, data: string): Registo | null {
 
   // Sinal auxiliar, não mexe no código: a data que o próprio email escreve.
   const primeiro = r.nrOcorrencias > 0 ? emails[0] : undefined;
-  const detalhe = primeiro
+  let detalhe = primeiro
     ? `${r.detalhe} ${fraseData(datasNoEmail(primeiro.assunto, primeiro.corpo_html, data), data, r.codigo === 4)}`
     : r.detalhe;
+
+  // Um 1 sem edição anterior comparável chegou, mas "conteúdo atualizado" não
+  // está provado: o painel mostra "Saiu (sem termo de comparação)".
+  let ressalva: Ressalva | null = r.codigo === 1 && r.semComparacao ? "sem-comparacao" : null;
+
+  // "Não Saiu" só com prova de ausência (`motivosSemProva`). Sem ela o
+  // registo fica — ou volta a ficar — em aberto com a ressalva "sem-prova": o
+  // painel e o Excel mostram "Não recebida – sem prova" (ou "Não assinada no
+  // email", se não houver remetente) e o detalhe diz porquê. O código continua
+  // 5 na base de dados (o CHECK só aceita 1 a 6); é `fechado = 0` que impede
+  // que seja lido como "Não Saiu". Nunca se escreve "→ Não Saiu" sem prova.
+  let fechado = existente.fechado;
+  if (r.codigo === 5 && horaLimite <= new Date()) {
+    const limite = horaLocal(horaLimite);
+    const motivos = motivosSemProva(n, data, horaLimite);
+    if (motivos.length > 0) {
+      fechado = 0;
+      ressalva = "sem-prova";
+      detalhe = `Nada recebido até ao limite das ${limite}, mas não se pode afirmar "Não Saiu": ${motivos.join("; ")}.`;
+    } else if (fechado === 0) {
+      detalhe =
+        `Nada recebido até ao limite das ${limite}. Por confirmar: falta uma leitura ` +
+        `bem-sucedida da caixa, feita depois do limite, que cubra este dia sem intervalos.`;
+    } else if (PAGAS.has(n.id)) {
+      detalhe = `${detalhe} Grupo de controlo: newsletter paga, a caixa não está inscrita nela de propósito.`;
+    }
+  }
 
   bd.prepare(
     `UPDATE registos
         SET hora_limite = ?, hora_recebida = ?, atraso_minutos = ?, codigo_estado = ?,
-            nr_ocorrencias = ?, detalhe = ?
+            nr_ocorrencias = ?, detalhe = ?, fechado = ?, ressalva = ?
       WHERE id = ?`,
   ).run(
     paraIso(horaLimite),
@@ -169,6 +198,8 @@ export function reavaliar(newsletterId: string, data: string): Registo | null {
     r.codigo,
     r.nrOcorrencias,
     detalhe,
+    fechado,
+    ressalva,
     existente.id,
   );
 
@@ -190,6 +221,14 @@ export const MARGEM_FECHO_MIN = 10;
  * depois do limite (mais a margem), e essa leitura tem de ter coberto o dia
  * da edição. Sem isso o registo fica em aberto — o painel mostra-o como "Por
  * confirmar" — em vez de virar um "Não Saiu" que pode ser só a caixa por ler.
+ *
+ * `desde` é o início da cobertura contínua da caixa (`coberturaDesde`), não
+ * só da última leitura: o que importa é que nenhum intervalo da janela da
+ * edição tenha ficado por ler.
+ *
+ * Um 5 sem prova de ausência (`motivosSemProva`) também não fecha: fica em
+ * aberto, com o detalhe atualizado, e volta a ser tentado no ciclo seguinte.
+ * Devolve quantos ficaram fechados.
  */
 export function fecharVencidos(leitura: { ok: Date; desde: Date }): number {
   const bd = db();
@@ -200,12 +239,15 @@ export function fecharVencidos(leitura: { ok: Date; desde: Date }): number {
       .all(paraIso(ate)) as Registo[]
   ).filter((reg) => intervaloDeBusca(reg.data_prevista).inicio >= leitura.desde);
 
+  let fechados = 0;
   for (const reg of vencidos) {
     bd.prepare(`UPDATE registos SET fechado = 1 WHERE id = ?`).run(reg.id);
-    // Depois de fechar, para que o detalhe use a redação de dia fechado.
-    reavaliar(reg.newsletter_id, reg.data_prevista);
+    // Depois de fechar, para que o detalhe use a redação de dia fechado. Se o
+    // 5 não tiver prova de ausência, o `reavaliar` volta a abri-lo.
+    const r = reavaliar(reg.newsletter_id, reg.data_prevista);
+    if (r?.fechado === 1) fechados++;
   }
-  return vencidos.length;
+  return fechados;
 }
 
 // ── Leituras para a página ─────────────────────────────────────────────────
@@ -283,6 +325,7 @@ export interface Celula {
   fechado: boolean;
   limitePassou: boolean;
   temConteudo: boolean;
+  ressalva: Ressalva | null;
 }
 
 export interface Matriz {
@@ -315,6 +358,7 @@ export function matriz(dias: string[]): Matriz {
           fechado: r.fechado === 1,
           limitePassou: limitePassou(r, agora),
           temConteudo: comConteudo.has(`${n.id}|${d}`),
+          ressalva: r.ressalva ?? null,
         };
       }),
     })),

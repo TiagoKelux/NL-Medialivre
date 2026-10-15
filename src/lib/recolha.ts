@@ -47,11 +47,12 @@ function identificador(m: MensagemGraph): string | null {
 export function reclassificar(): Set<string> {
   const bd = db();
   const emails = bd
-    .prepare(`SELECT id, remetente, assunto, recebido_em, newsletter_id FROM emails`)
+    .prepare(`SELECT id, remetente, assunto, corpo_html, recebido_em, newsletter_id FROM emails`)
     .all() as {
       id: number;
       remetente: string;
       assunto: string;
+      corpo_html: string;
       recebido_em: string;
       newsletter_id: string | null;
     }[];
@@ -60,7 +61,7 @@ export function reclassificar(): Set<string> {
   const afetados = new Set<string>();
 
   for (const e of emails) {
-    const novo = corresponder(e.remetente, e.assunto)?.id ?? null;
+    const novo = corresponder(e.remetente, e.assunto, e.corpo_html)?.id ?? null;
     if (novo === e.newsletter_id) continue;
     atualizar.run(novo, e.id);
     const recebido = new Date(e.recebido_em);
@@ -118,7 +119,7 @@ export async function recolher(horas = 24): Promise<ResumoRecolha> {
       const assunto = m.subject ?? "";
       const html = m.body?.content ?? "";
       const { normalizado, hash } = processarCorpo(html);
-      const n = corresponder(remetente, assunto);
+      const n = corresponder(remetente, assunto, html);
 
       const recebidoEm = paraIso(new Date(m.receivedDateTime));
       const res = inserir.run(

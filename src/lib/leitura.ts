@@ -13,6 +13,20 @@ export interface EstadoLeitura {
   desde: string | null;
   /** Última falha, se for mais recente do que a última leitura boa. */
   falha: { em: string; erro: string } | null;
+  /**
+   * ISO do início da cobertura contínua: desde aqui até `ok`, as leituras
+   * bem-sucedidas encadearam-se sem buracos. Um registo só tem prova de
+   * leitura se a janela da sua edição começar depois disto.
+   */
+  coberta: string | null;
+}
+
+function ler(chave: string): string | null {
+  return (
+    (db().prepare(`SELECT valor FROM estado WHERE chave = ?`).get(chave) as
+      | { valor: string }
+      | undefined)?.valor ?? null
+  );
 }
 
 export function registarLeitura(erro: Error | null, desde?: Date): void {
@@ -23,25 +37,41 @@ export function registarLeitura(erro: Error | null, desde?: Date): void {
        ON CONFLICT (chave) DO UPDATE SET valor = excluded.valor`,
   );
   if (erro) {
+    // Uma falha não apaga a cobertura: a leitura seguinte, se começar antes
+    // da última boa, tapa o buraco; se não começar, a cobertura recomeça.
     gravar.run("leitura_falha", JSON.stringify({ em: agora, erro: erro.message }));
   } else {
+    if (desde) {
+      // Encadeia com a cobertura anterior só se esta leitura começou antes de
+      // a anterior acabar — senão houve um intervalo que ninguém leu. (O `ok`
+      // gravado é o fim do registo, uns segundos depois do início da leitura;
+      // como cada leitura recua pelo menos uma semana, a diferença não conta.)
+      const anteriorOk = ler("leitura_ok");
+      const anteriorCoberta = ler("leitura_coberta");
+      const encadeia =
+        anteriorOk !== null && anteriorCoberta !== null && desde <= new Date(anteriorOk);
+      const coberta =
+        encadeia && new Date(anteriorCoberta!) < desde ? new Date(anteriorCoberta!) : desde;
+      gravar.run("leitura_coberta", coberta.toISOString());
+      gravar.run("leitura_desde", desde.toISOString());
+    }
     gravar.run("leitura_ok", agora);
-    if (desde) gravar.run("leitura_desde", desde.toISOString());
     bd.prepare(`DELETE FROM estado WHERE chave = 'leitura_falha'`).run();
   }
 }
 
-export function estadoLeitura(): EstadoLeitura {
-  const bd = db();
-  const ler = (chave: string) =>
-    (bd.prepare(`SELECT valor FROM estado WHERE chave = ?`).get(chave) as
-      | { valor: string }
-      | undefined)?.valor ?? null;
+/** Início da cobertura contínua da caixa, ou null se nunca houve leitura boa. */
+export function coberturaDesde(): Date | null {
+  const valor = ler("leitura_coberta");
+  return valor ? new Date(valor) : null;
+}
 
+export function estadoLeitura(): EstadoLeitura {
   const bruto = ler("leitura_falha");
   return {
     ok: ler("leitura_ok"),
     desde: ler("leitura_desde"),
     falha: bruto ? JSON.parse(bruto) : null,
+    coberta: ler("leitura_coberta"),
   };
 }

@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS registos (
   nr_ocorrencias INTEGER NOT NULL DEFAULT 0,
   detalhe        TEXT    NOT NULL DEFAULT '',
   fechado        INTEGER NOT NULL DEFAULT 0 CHECK (fechado IN (0, 1)),
+  -- Ressalva ao código, sem o mudar (ver tipos.ts). Em bases antigas é
+  -- acrescentada pelo db.ts.
+  ressalva       TEXT             DEFAULT NULL CHECK (ressalva IN ('sem-prova', 'sem-comparacao')),
   -- Um registo por newsletter por dia. É o que garante a ausência de buracos
   -- e a ausência de duplicados na matriz.
   UNIQUE (newsletter_id, data_prevista)

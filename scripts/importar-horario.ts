@@ -5,8 +5,10 @@
  *
  * Existe para que a configuração não seja escrita à mão sessenta vezes, e para
  * que quando o Excel mudar se possa voltar a correr em vez de emendar à mão.
- * Os campos `remetentes` e `padraoAssunto` não vêm do Excel — não estão lá — e
- * por isso são preservados do ficheiro que já existir.
+ * Os campos `remetentes`, `padraoRemetente`, `padraoAssunto` e `marcaCorpo` não
+ * vêm do Excel — não estão lá — e por isso são preservados do ficheiro que já existir,
+ * newsletter a newsletter, pelo `id`. Se um `id` desaparecer (o nome mudou no
+ * Excel), a regra dele é listada no fim, para não se perder em silêncio.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { inflateRawSync } from "node:zlib";
@@ -220,6 +222,7 @@ function preservado(id: string, campo: string): string | null {
 
 // ── Gerar ──────────────────────────────────────────────────────────────────
 const usados = new Map<string, number>();
+const gerados = new Set<string>();
 const blocos: string[] = [];
 let ativas = 0;
 const avisos: string[] = [];
@@ -258,9 +261,11 @@ for (const l of linhas) {
 
   if (ativa) ativas++;
 
+  gerados.add(id);
   const remetentes = preservado(id, "remetentes") ?? "[]";
   const padraoRem = preservado(id, "padraoRemetente") ?? '""';
   const padrao = preservado(id, "padraoAssunto") ?? '""';
+  const marcaCorpo = preservado(id, "marcaCorpo") ?? '""';
 
   const comentario = notas.length
     ? notas.map((n) => `  // ${n}`).join("\n") + "\n"
@@ -279,6 +284,7 @@ for (const l of linhas) {
     remetentes: ${remetentes},
     padraoRemetente: ${padraoRem},
     padraoAssunto: ${padrao},
+    marcaCorpo: ${marcaCorpo},
     ativa: ${ativa},
   },`,
   );
@@ -292,8 +298,9 @@ const saida = `import type { Newsletter } from "../src/lib/tipos.ts";
  * GERADO por \`npm run importar\` a partir da folha "Horário" do Excel.
  *
  * Não editar as periodicidades nem as horas à mão — mexer no Excel e voltar a
- * correr o importador. Os campos \`remetentes\` e \`padraoAssunto\` são a
- * exceção: não estão no Excel, escrevem-se aqui e o importador preserva-os.
+ * correr o importador. Os campos \`remetentes\`, \`padraoRemetente\`,
+ * \`padraoAssunto\` e \`marcaCorpo\` são a exceção: não estão no Excel,
+ * escrevem-se aqui e o importador preserva-os.
  *
  * ${linhas.length} newsletters, ${ativas} ativas.
  */
@@ -307,13 +314,16 @@ export function newsletterPorId(id: string): Newsletter | undefined {
 
 /**
  * Uma newsletter está configurada quando já sabe reconhecer os seus emails:
- * um endereço, e pelo menos um padrão que a distinga das outras que chegam do
- * mesmo endereço — o nome do remetente ou um pedaço fixo do assunto.
+ * um endereço, e pelo menos um critério que a distinga das outras que chegam
+ * do mesmo endereço — a marca no corpo, o nome do remetente ou um pedaço fixo
+ * do assunto.
  */
 export function estaConfigurada(n: Newsletter): boolean {
   return (
     n.remetentes.length > 0 &&
-    (n.padraoRemetente.trim() !== "" || n.padraoAssunto.trim() !== "")
+    (n.marcaCorpo.trim() !== "" ||
+      n.padraoRemetente.trim() !== "" ||
+      n.padraoAssunto.trim() !== "")
   );
 }
 `;
@@ -324,4 +334,24 @@ console.log(`${linhas.length} newsletters escritas em config/newsletters.ts (${a
 if (avisos.length) {
   console.log(`\n${avisos.length} com notas:`);
   console.log(avisos.join("\n"));
+}
+
+// Regras de correspondência cujo id já não existe: o importador não sabe a que
+// newsletter nova pertencem. Mostram-se para serem copiadas à mão.
+const perdidas: string[] = [];
+for (const m of anterior.matchAll(/id:\s*"([^"]+)"/g)) {
+  const id = m[1];
+  const rem = preservado(id, "remetentes");
+  if (gerados.has(id) || !rem || rem === "[]") continue;
+  const nome = preservado(id, "padraoRemetente") ?? '""';
+  const assunto = preservado(id, "padraoAssunto") ?? '""';
+  const marca = preservado(id, "marcaCorpo") ?? '""';
+  perdidas.push(
+    `  ${id}: remetentes ${rem}, padraoRemetente ${nome}, padraoAssunto ${assunto}, marcaCorpo ${marca}`,
+  );
+}
+if (perdidas.length) {
+  console.log(`\nATENÇÃO — ${perdidas.length} regra(s) de remetente ficaram sem newsletter (o id mudou no Excel):`);
+  console.log(perdidas.join("\n"));
+  process.exitCode = 1;
 }

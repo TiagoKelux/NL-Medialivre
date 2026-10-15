@@ -20,6 +20,16 @@ export function db(): Database.Database {
   bd.pragma("foreign_keys = ON");
   bd.exec(ESQUEMA);
 
+  // Coluna acrescentada depois da criação: o CREATE TABLE IF NOT EXISTS não
+  // mexe numa tabela que já existe. Não altera o CHECK do código.
+  const colunas = bd.prepare(`PRAGMA table_info(registos)`).all() as { name: string }[];
+  if (!colunas.some((c) => c.name === "ressalva")) {
+    bd.exec(
+      `ALTER TABLE registos ADD COLUMN ressalva TEXT DEFAULT NULL
+         CHECK (ressalva IN ('sem-prova', 'sem-comparacao'))`,
+    );
+  }
+
   ligacao = bd;
   return bd;
 }

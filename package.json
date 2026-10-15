@@ -14,6 +14,7 @@
     "migrar": "node --env-file=.env scripts/migrar.ts",
     "typecheck": "tsc --noEmit",
     "importar": "node scripts/importar-horario.ts",
+    "verificar": "node --env-file-if-exists=.env scripts/verificar-correspondencia.ts",
     "email": "node --env-file=.env scripts/importar-email.ts",
     "test": "node --test \"test/**/*.test.ts\""
   },

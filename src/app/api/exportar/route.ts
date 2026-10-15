@@ -5,6 +5,8 @@ import { calcularPeriodo, diasDoPeriodo, ehVista } from "../../../lib/periodo.ts
 import { chavesDe } from "../../../lib/filtros.ts";
 import { dataLocal, diaMes, horaLocal } from "../../../lib/tempo.ts";
 import { DESIGNACOES, type CodigoEstado, type Registo } from "../../../lib/tipos.ts";
+import { ROTULO, variante } from "../../../lib/apresentacao.ts";
+import { PAGAS } from "../../../../config/pagas.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -39,22 +41,31 @@ export function GET(pedido: Request) {
     )
     .all(dias[0], dias[dias.length - 1]) as Registo[];
 
-  // O mesmo que o painel mostra: um 5 ainda em aberto não é "Não Saiu" (está
-  // a aguardar, ou por confirmar se o limite passou sem leitura da caixa), e
-  // uma newsletter que não reconhece os seus emails não pode dar "Não Saiu".
-  // Nesses casos não há código — só o símbolo e a explicação.
+  // O mesmo que o painel mostra (lib/apresentacao.ts): um 5 ainda em aberto
+  // não é "Não Saiu" (a aguardar, por confirmar, ou sem prova de ausência),
+  // uma newsletter que não reconhece os seus emails não pode dar "Não Saiu",
+  // e um 1 sem edição anterior não prova "conteúdo atualizado". Nesses casos
+  // não há código — só o símbolo e a explicação. As pagas fechadas em 5 são
+  // o grupo de controlo: ficam com o 5 e contam no resumo.
   const agora = new Date();
   const especial = (r: Registo): { simbolo: string; texto: string } | null => {
-    if (r.codigo_estado === 6) return null;
     const n = newsletterPorId(r.newsletter_id);
-    if (!n || !estaConfigurada(n)) return { simbolo: "–", texto: "Não assinada no email" };
-    if (r.fechado === 0 && r.codigo_estado === 5) {
-      return new Date(r.hora_limite) <= agora
-        ? { simbolo: "?", texto: "Por confirmar" }
-        : { simbolo: "…", texto: "A aguardar" };
-    }
-    return null;
+    const v = variante({
+      codigo: r.codigo_estado,
+      fechado: r.fechado === 1,
+      limitePassou: r.fechado === 0 && new Date(r.hora_limite) <= agora,
+      semEmail: !n || !estaConfigurada(n),
+      paga: PAGAS.has(r.newsletter_id),
+      ressalva: r.ressalva ?? null,
+    });
+    if (v === null || v === "controlo") return null;
+    return { simbolo: ROTULO[v].digito, texto: ROTULO[v].texto };
   };
+  const estadoDe = (r: Registo): string =>
+    especial(r)?.texto ??
+    (PAGAS.has(r.newsletter_id) && r.codigo_estado === 5 && r.fechado === 1
+      ? ROTULO.controlo.texto
+      : DESIGNACOES[r.codigo_estado as CodigoEstado] ?? "");
 
   const indice = new Map<string, Registo>();
   for (const r of registos) indice.set(`${r.newsletter_id}|${r.data_prevista}`, r);
@@ -108,7 +119,7 @@ export function GET(pedido: Request) {
       r.hora_recebida ? horaLocal(new Date(r.hora_recebida)) : null,
       r.atraso_minutos,
       especial(r) ? null : r.codigo_estado,
-      especial(r)?.texto ?? DESIGNACOES[r.codigo_estado as CodigoEstado] ?? "",
+      estadoDe(r),
       r.nr_ocorrencias,
       r.fechado === 1 ? "Sim" : "Não",
       r.detalhe,

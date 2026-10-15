@@ -5,7 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { chavesDe, peso, rotuloDe, TODAS } from "../lib/filtros.ts";
 import type { EstadoLeitura } from "../lib/leitura.ts";
 import type { Periodo, Vista } from "../lib/periodo.ts";
-import { DESIGNACOES, type CodigoEstado, type Periodicidade } from "../lib/tipos.ts";
+import { DESIGNACOES, type CodigoEstado, type Periodicidade, type Ressalva } from "../lib/tipos.ts";
+import { ROTULO, variante, type Variante } from "../lib/apresentacao.ts";
 
 /**
  * A página (§8): um único quadro, com três níveis de zoom.
@@ -25,45 +26,15 @@ interface Cadencia {
   /**
    * A newsletter ainda não reconhece os seus emails (sem remetente
    * configurado). Um "Não Saiu" nela não quer dizer nada — mostra-se a preto.
+   * Não se aplica às pagas, que são o grupo de controlo (ver apresentacao.ts).
    */
   semEmail: boolean;
   /** Só para assinantes (coluna "Segmento" do Excel) — leva uma estrela. */
   paga: boolean;
 }
 
-const SEM_EMAIL = "Não assinada no email";
-const AGUARDA = "A aguardar";
-const POR_CONFIRMAR = "Por confirmar";
-
-/**
- * Como se mostra um registo, para lá do código:
- * - "sem-email": a newsletter ainda não reconhece os seus emails — preto;
- * - "aguarda": registo de hoje ainda antes da hora limite. Na base de dados
- *   nasce com o código 5, mas "Não Saiu" só é verdade depois de fechar;
- * - "por-confirmar": a hora limite passou mas ainda não houve uma leitura da
- *   caixa depois dela (monitor parado, PC desligado, leitura a falhar). Sem
- *   prova, não se afirma "Não Saiu".
- * O código 6 (não é dia, desativada) mostra-se sempre como está.
- */
-type Variante = "sem-email" | "aguarda" | "por-confirmar" | null;
-
-function variante(
-  semEmail: boolean,
-  codigo: CodigoEstado,
-  fechado: boolean,
-  limitePassou: boolean,
-): Variante {
-  if (codigo === 6) return null;
-  if (semEmail) return "sem-email";
-  if (!fechado && codigo === 5) return limitePassou ? "por-confirmar" : "aguarda";
-  return null;
-}
-
-const ROTULO: Record<Exclude<Variante, null>, { digito: string; texto: string }> = {
-  "sem-email": { digito: "–", texto: SEM_EMAIL },
-  aguarda: { digito: "…", texto: AGUARDA },
-  "por-confirmar": { digito: "?", texto: POR_CONFIRMAR },
-};
+// A variante (controlo, sem-email, aguarda, sem-prova, por-confirmar,
+// sem-comparacao) decide-se em lib/apresentacao.ts, partilhada com o Excel.
 
 export interface LinhaDia extends Cadencia {
   newsletterId: string;
@@ -77,6 +48,7 @@ export interface LinhaDia extends Cadencia {
   fechado: boolean;
   limitePassou: boolean;
   temConteudo: boolean;
+  ressalva: Ressalva | null;
 }
 
 export interface DiaMatriz {
@@ -96,6 +68,7 @@ export interface CelulaMatriz {
   fechado: boolean;
   limitePassou: boolean;
   temConteudo: boolean;
+  ressalva: Ressalva | null;
 }
 
 export interface EmailSolto {
@@ -593,7 +566,7 @@ export default function Painel({ hoje, leitura, porClassificar, periodo, grelha,
                         </td>
                       )}
                       <td>
-                        <Estado codigo={l.codigo} variante={variante(l.semEmail, l.codigo, l.fechado, l.limitePassou)} />
+                        <Estado codigo={l.codigo} variante={variante({ codigo: l.codigo, fechado: l.fechado, limitePassou: l.limitePassou, semEmail: l.semEmail, paga: l.paga, ressalva: l.ressalva })} />
                       </td>
                     </tr>
                   );
@@ -654,7 +627,7 @@ export default function Painel({ hoje, leitura, porClassificar, periodo, grelha,
                             </td>
                           );
                         }
-                        const v = variante(l.semEmail, c.codigo, c.fechado, c.limitePassou);
+                        const v = variante({ codigo: c.codigo, fechado: c.fechado, limitePassou: c.limitePassou, semEmail: l.semEmail, paga: l.paga, ressalva: c.ressalva });
                         const designacao = v ? ROTULO[v].texto : DESIGNACOES[c.codigo];
                         return (
                           <td key={chave} className={borda}>
@@ -772,9 +745,12 @@ export default function Painel({ hoje, leitura, porClassificar, periodo, grelha,
         {([1, 2, 3, 4, 5, 6] as CodigoEstado[]).map((c) => (
           <Estado key={c} codigo={c} />
         ))}
+        <Estado codigo={5} variante="controlo" />
         <Estado codigo={5} variante="aguarda" />
         <Estado codigo={5} variante="por-confirmar" />
+        <Estado codigo={5} variante="sem-prova" />
         <Estado codigo={5} variante="sem-email" />
+        <Estado codigo={1} variante="sem-comparacao" />
       </aside>
     </div>
   );

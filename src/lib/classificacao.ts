@@ -53,6 +53,11 @@ export interface Resultado {
   atrasoMinutos: number | null;
   nrOcorrencias: number;
   detalhe: string;
+  /**
+   * Chegou, mas não havia edição anterior comparável: um 1 nestas condições
+   * não prova "conteúdo atualizado". Não muda o código.
+   */
+  semComparacao?: boolean;
 }
 
 /** Hoje é dia de envio para esta newsletter? */
@@ -169,7 +174,7 @@ export function classificar(ctx: Contexto): Resultado {
       ? `Hash igual ao da edição de ${diaMes(ctx.edicaoAnterior!.data)} → conteúdo repetido.`
       : `Hash diferente da edição de ${diaMes(ctx.edicaoAnterior!.data)} → conteúdo novo.`;
 
-  const base = { horaRecebida, atrasoMinutos, nrOcorrencias };
+  const base = { horaRecebida, atrasoMinutos, nrOcorrencias, semComparacao: !comparavel };
 
   // ── 3: dois envios distintos na mesma janela ────────────────────────────
   if (nrOcorrencias >= 2) {
