@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { garantirDias, gerarDia, reavaliarRecentes } from "../../../lib/registos.ts";
 import { correrCiclo } from "../../../lib/ciclo.ts";
 import { copiaDiaria } from "../../../lib/copias.ts";
+import { garantirMarcas } from "../../../lib/marcas.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -67,12 +68,15 @@ export async function POST() {
   );
 
   // Arranque: tapar buracos deixados por uma paragem do processo (critério 1).
+  // As marcas que faltem (base antiga, configuração mudada) extraem-se já,
+  // uma vez, para que a reavaliação a seguir não tenha de ler corpos.
+  const marcas = garantirMarcas();
   const recuperados = garantirDias(45);
   const recalculados = reavaliarRecentes(45);
   const passos = await correrCiclo().catch((e) => [`falha: ${(e as Error).message}`]);
 
   registar(
-    `Jobs agendados. Fuso: ${fuso}. Recuperados: ${recuperados}. Recalculados: ${recalculados}. ${passos.join(" · ")}`,
+    `Jobs agendados. Fuso: ${fuso}. Recuperados: ${recuperados}. Recalculados: ${recalculados}. Marcas extraídas: ${marcas}. ${passos.join(" · ")}`,
   );
   return NextResponse.json({ ok: true, fuso, recuperados, passos });
 }

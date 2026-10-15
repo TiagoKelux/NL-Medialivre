@@ -30,6 +30,23 @@ export function db(): Database.Database {
     );
   }
 
+  // Marcas extraídas do corpo à entrada (marcas.ts). Em bases antigas a
+  // coluna nasce vazia e é preenchida pelo `garantirMarcas`, uma vez.
+  const colunasEmails = bd.prepare(`PRAGMA table_info(emails)`).all() as { name: string }[];
+  if (!colunasEmails.some((c) => c.name === "marcas")) {
+    bd.exec(`ALTER TABLE emails ADD COLUMN marcas TEXT DEFAULT NULL`);
+  }
+  // Índice de cobertura da reclassificação. O corpo (~70 KB) transborda para
+  // páginas de overflow e as colunas gravadas DEPOIS dele (newsletter_id,
+  // marcas) só se leem percorrendo-as todas — ler só essas colunas custava
+  // quase o mesmo que ler o corpo. Com este índice, a leitura de 5 em 5
+  // minutos não toca na tabela. Começa pela data para servir também as
+  // procuras por janela da prova de ausência (prova.ts).
+  bd.exec(
+    `CREATE INDEX IF NOT EXISTS idx_emails_identificacao
+       ON emails (recebido_em, remetente, assunto, newsletter_id, marcas)`,
+  );
+
   ligacao = bd;
   return bd;
 }

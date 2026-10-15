@@ -1,4 +1,5 @@
 import { NEWSLETTERS, estaConfigurada } from "../../config/newsletters.ts";
+import { extrairMarcas, normalizarHtml, versaoMarcas, type Marcas } from "./marcas.ts";
 import type { Newsletter } from "./tipos.ts";
 
 /**
@@ -62,14 +63,6 @@ function normalizarNome(s: string): string {
 }
 
 /**
- * O HTML traz o mesmo endereço do anúncio umas vezes com "/" e outras com
- * "%2F" (dentro de URLs de clique). Põe-se tudo com "/" antes de procurar.
- */
-function normalizarHtml(html: string): string {
-  return html.replace(/%2F/gi, "/").toLowerCase();
-}
-
-/**
  * Assuntos de marketing conhecidos. Já não são eles que impedem o marketing de
  * passar por edição — isso é a `marcaCorpo`. Servem para o painel não listar
  * estes emails em "por classificar", e como segunda barreira para as
@@ -99,21 +92,42 @@ function especificidade(n: Newsletter): number {
   return n.marcaCorpo.trim().length + n.padraoRemetente.trim().length + n.padraoAssunto.trim().length;
 }
 
+/**
+ * O corpo, para a identificação: ou o HTML, ou as marcas já extraídas dele
+ * (`emails.marcas`, ver marcas.ts) — o resultado é o mesmo, sem reler o HTML.
+ */
+export type Corpo = string | Marcas;
+
+/** Uma função que diz se o corpo traz uma `marcaCorpo` (já normalizada). */
+function procurador(corpo: Corpo, newsletters: Newsletter[]): (marca: string) => boolean {
+  if (typeof corpo === "string") {
+    const html = normalizarHtml(corpo);
+    return (marca) => html.includes(marca);
+  }
+  // Marcas de outra configuração dariam um resultado diferente do HTML: é um
+  // erro de programação, não um caso a tolerar.
+  if (corpo.v !== versaoMarcas(newsletters)) {
+    throw new Error("marcas extraídas com outra configuração — usar marcasDoEmail()/garantirMarcas()");
+  }
+  const encontradas = new Set(corpo.m);
+  return (marca) => encontradas.has(marca);
+}
+
 export function corresponder(
   remetente: string,
   assunto: string,
-  html: string,
+  corpo: Corpo,
   newsletters: Newsletter[] = NEWSLETTERS,
 ): Newsletter | null {
   if (naoEEdicao(assunto)) return null;
 
   const nome = normalizarNome(extrairNome(remetente));
-  const corpo = normalizarHtml(html);
+  const traz = procurador(corpo, newsletters);
   const candidatas = newsletters.filter(
     (n) =>
       estaConfigurada(n) &&
       enderecoBate(remetente, n.remetentes) &&
-      (!n.marcaCorpo.trim() || corpo.includes(normalizarHtml(n.marcaCorpo.trim()))) &&
+      (!n.marcaCorpo.trim() || traz(normalizarHtml(n.marcaCorpo.trim()))) &&
       (!n.padraoRemetente.trim() || nome === normalizarNome(n.padraoRemetente)) &&
       (!n.padraoAssunto || contem(assunto, n.padraoAssunto)),
   );
@@ -126,4 +140,49 @@ export function corresponder(
   const ordenadas = [...candidatas].sort((a, b) => especificidade(b) - especificidade(a));
   if (especificidade(ordenadas[0]) === especificidade(ordenadas[1])) return null;
   return ordenadas[0];
+}
+
+// ── Marketing do editor, pela estrutura ────────────────────────────────────
+
+/**
+ * Acima disto de texto visível já não é um email de CRM. As campanhas reais
+ * (boas-vindas e reconquista) têm 430–1 250 caracteres; a edição mais curta
+ * da caixa, ~1 300, e nenhuma edição usa o editor de campanhas.
+ */
+export const TEXTO_MAXIMO_CRM = 2000;
+
+/**
+ * O email vem de um endereço de edições, mas é marketing do editor (boas-
+ * vindas, "volte a ler-nos", "o melhor que publicámos"…) — decidido pela
+ * ESTRUTURA do corpo, sem depender da redação do assunto, que muda a cada
+ * campanha.
+ *
+ * Características medidas nos emails reais (snapshot de 29/09 a 15/10):
+ *   - remetente: um endereço configurado de uma newsletter (info@news.<marca>);
+ *     fora disso a função não se pronuncia (devolve false);
+ *   - sem marca de edição: nem o bloco de publicidade
+ *     `/4196/<MARCA>_MASTHEAD/NEWSLETTER_<NOME>_LEADERBOARD`, nem a
+ *     `marcaCorpo` de nenhuma newsletter desse endereço (o logótipo da Vidas);
+ *   - feito no editor de campanhas: imagens em assets.unlayer.com (logótipos,
+ *     ícones das redes). Nenhuma edição da caixa as tem; todas as campanhas
+ *     de CRM têm 3 ou mais;
+ *   - curto: menos de `TEXTO_MAXIMO_CRM` caracteres de texto visível.
+ *
+ * As promoções de comércio afiliado ("FLASH! Indica") não são apanhadas: não
+ * usam o editor de campanhas e não dizem nada sobre a inscrição da caixa.
+ *
+ * Aceita o HTML ou as marcas já extraídas (`emails.marcas`).
+ */
+export function eNaoEdicaoDoEditor(
+  corpo: Corpo,
+  remetente: string,
+  newsletters: Newsletter[] = NEWSLETTERS,
+): boolean {
+  const doEndereco = newsletters.filter((n) => n.remetentes.length > 0 && enderecoBate(remetente, n.remetentes));
+  if (doEndereco.length === 0) return false;
+  const m = typeof corpo === "string" ? extrairMarcas(corpo, newsletters) : corpo;
+  if (m.pub) return false;
+  const traz = procurador(m, newsletters);
+  if (doEndereco.some((n) => n.marcaCorpo.trim() && traz(normalizarHtml(n.marcaCorpo.trim())))) return false;
+  return m.crm > 0 && m.txt < TEXTO_MAXIMO_CRM;
 }

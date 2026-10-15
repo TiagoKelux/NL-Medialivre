@@ -2,6 +2,7 @@ import { db } from "./db.ts";
 import type { MensagemGraph } from "./graph/mail.ts";
 import { corresponder } from "./correspondencia.ts";
 import { processarCorpo } from "./conteudo.ts";
+import { extrairMarcas, garantirMarcas, marcasDoEmail } from "./marcas.ts";
 import { reavaliar, registoDe } from "./registos.ts";
 import { dataEdicao } from "./edicao.ts";
 import { newsletterPorId } from "../../config/newsletters.ts";
@@ -43,16 +44,25 @@ function identificador(m: MensagemGraph): string | null {
  * passam a ter newsletter; quando se aperta a regra (uma promoção que passava
  * por edição), os que estavam mal atribuídos saem. Devolve os pares
  * newsletter|dia a reavaliar — o de antes e o de depois.
+ *
+ * Não lê o `corpo_html`: usa as marcas extraídas à entrada (`emails.marcas`).
+ * As que faltem ou sejam de outra configuração extraem-se primeiro, uma vez.
  */
 export function reclassificar(): Set<string> {
   const bd = db();
+  garantirMarcas();
   const emails = bd
-    .prepare(`SELECT id, remetente, assunto, corpo_html, recebido_em, newsletter_id FROM emails`)
+    // O índice de cobertura (db.ts) evita atravessar as páginas de overflow
+    // dos corpos; `INDEXED BY` impede o planeador de preferir a tabela.
+    .prepare(
+      `SELECT id, remetente, assunto, marcas, recebido_em, newsletter_id
+         FROM emails INDEXED BY idx_emails_identificacao`,
+    )
     .all() as {
       id: number;
       remetente: string;
       assunto: string;
-      corpo_html: string;
+      marcas: string | null;
       recebido_em: string;
       newsletter_id: string | null;
     }[];
@@ -61,7 +71,7 @@ export function reclassificar(): Set<string> {
   const afetados = new Set<string>();
 
   for (const e of emails) {
-    const novo = corresponder(e.remetente, e.assunto, e.corpo_html)?.id ?? null;
+    const novo = corresponder(e.remetente, e.assunto, marcasDoEmail(e.id, e.marcas))?.id ?? null;
     if (novo === e.newsletter_id) continue;
     atualizar.run(novo, e.id);
     const recebido = new Date(e.recebido_em);
@@ -95,8 +105,8 @@ export async function recolher(horas = 24): Promise<ResumoRecolha> {
   const inserir = bd.prepare(`
     INSERT OR IGNORE INTO emails
       (internet_message_id, remetente, assunto, recebido_em,
-       corpo_html, corpo_normalizado, hash_conteudo, newsletter_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       corpo_html, corpo_normalizado, hash_conteudo, newsletter_id, marcas)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const resumo: ResumoRecolha = {
@@ -119,7 +129,8 @@ export async function recolher(horas = 24): Promise<ResumoRecolha> {
       const assunto = m.subject ?? "";
       const html = m.body?.content ?? "";
       const { normalizado, hash } = processarCorpo(html);
-      const n = corresponder(remetente, assunto, html);
+      const marcas = extrairMarcas(html);
+      const n = corresponder(remetente, assunto, marcas);
 
       const recebidoEm = paraIso(new Date(m.receivedDateTime));
       const res = inserir.run(
@@ -131,6 +142,7 @@ export async function recolher(horas = 24): Promise<ResumoRecolha> {
         normalizado,
         hash,
         n?.id ?? null,
+        JSON.stringify(marcas),
       );
 
       // changes === 0 significa que o UNIQUE rejeitou: é o mesmo email outra
