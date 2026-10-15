@@ -103,6 +103,9 @@ header.topo p.leitura.alerta {
   color: var(--c5);
 }
 header.topo p.leitura.alerta::before { background: var(--c5); }
+/* Não é o monitor parado: aviso amarelo, não vermelho. */
+header.topo p.leitura.alerta.caixa-cortada { background: var(--c2-fundo); color: var(--c2); }
+header.topo p.leitura.alerta.caixa-cortada::before { background: var(--c2); }
 
 section { margin-bottom: 34px; }
 section > h2 {

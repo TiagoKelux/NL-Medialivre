@@ -1,6 +1,7 @@
 import { estaConfigurada, newsletterPorId } from "../../config/newsletters.ts";
 import { PAGAS } from "../../config/pagas.ts";
 import { estadoLeitura } from "../lib/leitura.ts";
+import { saudeCaixa } from "../lib/caixa.ts";
 import { garantirDias, grelhaDoDia, matriz } from "../lib/registos.ts";
 import { contarPorClassificar } from "../lib/regras.ts";
 import { calcularPeriodo, diasDoPeriodo, ehVista } from "../lib/periodo.ts";
@@ -14,6 +15,7 @@ import {
   segundaDaSemana,
 } from "../lib/tempo.ts";
 import Painel, {
+  type CaixaCortadaAviso,
   type CelulaMatriz,
   type LinhaDia,
   type LinhaMatriz,
@@ -100,10 +102,25 @@ export default async function Pagina({
     celulas: l.celulas as (CelulaMatriz | null)[],
   }));
 
+  // Editores que deixaram de mandar as diárias a esta caixa (lib/caixa.ts).
+  // Sem isto, os "Não recebida – sem prova" liam-se como newsletters falhadas.
+  let caixaCortada: CaixaCortadaAviso[] = [];
+  try {
+    const { dominios, caixaCortada: cortadas } = saudeCaixa();
+    caixaCortada = cortadas.map((c) => {
+      const diarias = dominios.find((d) => d.dominio === c.dominio)?.diarias ?? [];
+      const marcas = [...new Set(diarias.map((id) => newsletterPorId(id)?.marca).filter(Boolean))];
+      return { marcas: marcas.length > 0 ? marcas.join(" / ") : c.dominio, desde: diaMes(c.desde) };
+    });
+  } catch {
+    caixaCortada = [];
+  }
+
   return (
     <Painel
       hoje={hoje}
       leitura={estadoLeitura()}
+      caixaCortada={caixaCortada}
       porClassificar={contarPorClassificar(7)}
       periodo={periodo}
       grelha={grelha}

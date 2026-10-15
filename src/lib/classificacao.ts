@@ -109,8 +109,11 @@ function descreverPeriodicidade(n: Newsletter): string {
     case "dias_uteis":
       return "esperada de 2.ª a 6.ª";
     case "dia_semana": {
-      const dias = (n.diasSemana ?? []).map((d) => NOMES_DIAS[d - 1]).join(" e ");
-      return dias ? `esperada só à ${dias.toLowerCase()}` : "sem dias configurados";
+      // "à quinta-feira", mas "ao sábado" e "ao domingo".
+      const dias = (n.diasSemana ?? [])
+        .map((d) => `${d >= 6 ? "ao" : "à"} ${NOMES_DIAS[d - 1].toLowerCase()}`)
+        .join(" e ");
+      return dias ? `esperada só ${dias}` : "sem dias configurados";
     }
     case "dia_mes": {
       const dias = (n.diasMes ?? []).join(" e ");

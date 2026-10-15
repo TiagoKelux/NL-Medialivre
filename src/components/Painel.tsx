@@ -104,9 +104,18 @@ export interface LinhaMatriz extends Cadencia {
   celulas: (CelulaMatriz | null)[];
 }
 
+/** Um editor que deixou de mandar as diárias a esta caixa (lib/caixa.ts). */
+export interface CaixaCortadaAviso {
+  /** As marcas das diárias desse editor ("CM / Vidas"). */
+  marcas: string;
+  /** Primeiro dia esperado sem nenhuma diária (DD/MM). */
+  desde: string;
+}
+
 interface Props {
   hoje: string;
   leitura: EstadoLeitura;
+  caixaCortada: CaixaCortadaAviso[];
   /** Emails da última semana sem newsletter atribuída (ver /classificar). */
   porClassificar: number;
   periodo: Periodo;
@@ -178,8 +187,8 @@ function LeituraCaixa({ leitura }: { leitura: EstadoLeitura }) {
     return (
       <p className="leitura alerta" role="alert">
         <strong>A leitura da caixa está a falhar desde as {horaDe(falha.em)}</strong> ({falha.erro}).
-        {ok ? ` Última leitura boa às ${horaDe(ok)}, ${ha(minutos!)}.` : ""} Os “Não Saiu” desde
-        então podem ser falsos.
+        {ok ? ` Última leitura boa às ${horaDe(ok)}, ${ha(minutos!)}.` : ""} O que chegou desde
+        então ainda não foi visto: esses dias ficam “Por confirmar” até a leitura voltar.
       </p>
     );
   }
@@ -208,6 +217,26 @@ function LeituraCaixa({ leitura }: { leitura: EstadoLeitura }) {
   );
 }
 
+/**
+ * Os editores cortam o envio a caixas que nunca abrem os emails. A leitura
+ * continua bem (o aviso de cima fica verde), mas as diárias deixam de chegar e
+ * o painel enche-se de "Não recebida – sem prova". Sem este aviso, quem abre o
+ * painel conclui que as newsletters falharam.
+ */
+function AvisoCaixaCortada({ cortadas }: { cortadas: CaixaCortadaAviso[] }) {
+  if (cortadas.length === 0) return null;
+  const lista = cortadas.map((c) => `${c.marcas} (desde ${c.desde})`).join(", ");
+  return (
+    <p className="leitura alerta caixa-cortada" role="alert">
+      <strong>A caixa monitorizada deixou de receber as newsletters diárias de: {lista}.</strong>{" "}
+      Os editores costumam cortar o envio a caixas que não abrem os emails. Isto não quer dizer
+      que as newsletters não saíram: nesses dias o painel mostra “∅ Não recebida – sem prova”,
+      ou seja, não sabemos. Para voltar a vigiá-las, é preciso inscrever de novo a caixa nessas
+      newsletters.
+    </p>
+  );
+}
+
 function Estado({ codigo, variante = null }: { codigo: CodigoEstado; variante?: Variante }) {
   if (variante) {
     return (
@@ -225,7 +254,7 @@ function Estado({ codigo, variante = null }: { codigo: CodigoEstado; variante?: 
   );
 }
 
-export default function Painel({ hoje, leitura, porClassificar, periodo, grelha, dias, linhas }: Props) {
+export default function Painel({ hoje, leitura, caixaCortada, porClassificar, periodo, grelha, dias, linhas }: Props) {
   const [selecao, setSelecao] = useState<Selecao | null>(null);
   const [ativa, setAtiva] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<string>(TODAS);
@@ -391,6 +420,7 @@ export default function Painel({ hoje, leitura, porClassificar, periodo, grelha,
       <header className="topo">
         <h1>Media Livre — Monitor de Newsletters</h1>
         <LeituraCaixa leitura={leitura} />
+        <AvisoCaixaCortada cortadas={caixaCortada} />
         <p className={`soltos ${porClassificar > 0 ? "ha-soltos" : ""}`}>
           <Link href="/classificar">
             {porClassificar === 0
@@ -501,7 +531,7 @@ export default function Painel({ hoje, leitura, porClassificar, periodo, grelha,
                   <th>Newsletter</th>
                   {mostrarHoras && <th>Prevista</th>}
                   {mostrarHoras && <th>Recebida</th>}
-                  {mostrarHoras && <th>Atraso</th>}
+                  {mostrarHoras && <th title="Minutos depois da hora limite (prevista + tolerância)">Atraso após o limite</th>}
                   <th>Estado</th>
                 </tr>
               </thead>
