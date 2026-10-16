@@ -1,7 +1,7 @@
 import { db } from "./db.ts";
 import { NEWSLETTERS } from "../../config/newsletters.ts";
 import { PAGAS } from "../../config/pagas.ts";
-import { ehDiaEsperado } from "./classificacao.ts";
+import { esperadoNoDia } from "./calendario.ts";
 import { dataEdicao } from "./edicao.ts";
 import { horaLimiteDe } from "./registos.ts";
 import { dataLocal, somarDias } from "./tempo.ts";
@@ -108,7 +108,7 @@ export function saudeCaixa(agora: Date = new Date(), newsletters: Newsletter[] =
     const semDiaria: string[] = [];
     if (diaUltima) {
       for (let d = somarDias(diaUltima, 1), i = 0; d <= hoje && i < MAXIMO_DIAS; d = somarDias(d, 1), i++) {
-        if (diarias.some((n) => ehDiaEsperado(n, d) && horaLimiteDe(n, d) <= agora)) semDiaria.push(d);
+        if (diarias.some((n) => esperadoNoDia(n, d) && horaLimiteDe(n, d) <= agora)) semDiaria.push(d);
       }
     }
 

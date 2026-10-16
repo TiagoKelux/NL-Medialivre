@@ -16,6 +16,7 @@
     "importar": "node scripts/importar-horario.ts",
     "verificar": "node --env-file-if-exists=.env scripts/verificar-correspondencia.ts",
     "email": "node --env-file=.env scripts/importar-email.ts",
+    "recalendarizar": "node --env-file-if-exists=.env scripts/recalendarizar.ts",
     "test": "node --test \"test/**/*.test.ts\""
   },
   "dependencies": {

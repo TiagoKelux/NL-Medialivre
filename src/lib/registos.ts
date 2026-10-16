@@ -5,6 +5,7 @@ import { classificar, type EdicaoAnterior, type Ocorrencia } from "./classificac
 import { datasNoEmail, fraseData } from "./datas.ts";
 import { PRAZO_ATRASO_MIN, dataEdicao, intervaloDeBusca } from "./edicao.ts";
 import { marcasDoEmail } from "./marcas.ts";
+import { calendarioDe, newsletterNoDia } from "./calendario.ts";
 import { naoEEdicao } from "./correspondencia.ts";
 import { motivosSemProva } from "./prova.ts";
 import { estadoLeitura } from "./leitura.ts";
@@ -35,51 +36,6 @@ export function fimDoPrazo(n: Newsletter, data: string): Date {
   return somarMinutos(paraInstante(data, n.horaPrevista), PRAZO_ATRASO_MIN);
 }
 
-// ── Calendário de cada dia ─────────────────────────────────────────────────
-
-/**
- * O calendário de uma newsletter tal como estava num dia: periodicidade,
- * dias, hora, tolerância e se estava ativa. Fica gravado no registo
- * (`registos.calendario`) e congela quando o dia passa: mudar o Excel hoje
- * muda hoje e os dias seguintes, nunca o que já se passou — acrescentar a
- * quarta-feira a uma semanal não pode transformar as quartas passadas em
- * "Não Saiu". As regras de identificação e de classificação (o código)
- * continuam a aplicar-se a todo o histórico; só o calendário fica fixo.
- */
-type Calendario = Pick<
-  Newsletter,
-  "periodicidade" | "diasSemana" | "diasMes" | "horaPrevista" | "toleranciaMinutos" | "ativa"
->;
-
-function calendarioDe(n: Newsletter): Calendario {
-  return {
-    periodicidade: n.periodicidade,
-    diasSemana: n.diasSemana,
-    diasMes: n.diasMes,
-    horaPrevista: n.horaPrevista,
-    toleranciaMinutos: n.toleranciaMinutos,
-    ativa: n.ativa,
-  };
-}
-
-function lerCalendario(json: string | null | undefined): Calendario | null {
-  if (!json) return null;
-  try {
-    const c = JSON.parse(json) as Calendario;
-    return typeof c.periodicidade === "string" && typeof c.horaPrevista === "string" ? c : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * A newsletter com o calendário que vale para este dia: o gravado, se o dia
- * já passou; o da configuração atual, se é hoje ou ainda não tem nenhum.
- */
-export function newsletterNoDia(n: Newsletter, data: string, gravado: string | null | undefined): Newsletter {
-  const c = data < dataLocal() ? lerCalendario(gravado) : null;
-  return c ? { ...n, ...c } : n;
-}
 
 /**
  * §7.1 — Job das 00h05: gerar as linhas do dia.

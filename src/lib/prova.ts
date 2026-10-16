@@ -2,6 +2,7 @@ import { db } from "./db.ts";
 import { estaConfigurada } from "../../config/newsletters.ts";
 import { PAGAS } from "../../config/pagas.ts";
 import { ehDiaEsperado } from "./classificacao.ts";
+import { newsletterDoRegisto } from "./calendario.ts";
 import { eNaoEdicaoDoEditor, extrairEndereco, extrairNome, naoEEdicao, normalizarAssunto } from "./correspondencia.ts";
 import { lerCampanhas, marcasDoEmail, type Campanhas, type Marcas } from "./marcas.ts";
 import { dataEdicao, intervaloDeBusca } from "./edicao.ts";
@@ -153,6 +154,8 @@ export function podeSerDe(
  * marketing (boas-vindas, reconquista, "Indica", Record Premium) vem sem
  * token ou de campanhas próprias. Daí:
  *   - campanha de uma edição desta newsletter → é dela (true);
+ *   - tem cara de edição (bloco de publicidade ou `marcaCorpo`) → não decide
+ *     (null): rede de segurança para templates e campanhas novas;
  *   - campanha de outra newsletter → não é (false);
  *   - esta newsletter tem campanha conhecida e o email vem de outra, ou sem
  *     token → não é edição dela (false): as edições dela trazem sempre a sua;
@@ -163,10 +166,14 @@ export function podeSerDe(
 export function campanhaDecide(n: Newsletter, marcas: Marcas, campanhas: Campanhas): boolean | null {
   const minhas = campanhas.daNewsletter.get(n.id);
   const c = marcas.eb?.campanha;
-  if (c) {
-    const dona = campanhas.dona.get(c);
-    if (dona) return dona === n.id;
-  }
+  if (c && campanhas.dona.get(c) === n.id) return true;
+  // Rede de segurança: o que tem cara de edição (o bloco de publicidade de
+  // uma newsletter, ou uma `marcaCorpo` configurada) nunca é posto de parte
+  // só pela campanha — pode ser um template novo, ou uma campanha nova. A
+  // campanha só descarta o que não se parece com edição nenhuma. Nos dados
+  // de 29/09 a 15/10, nenhum email por atribuir tinha cara de edição.
+  if (marcas.pub || marcas.m.length > 0) return null;
+  if (c && campanhas.dona.has(c)) return false;
   return minhas && minhas.size > 0 ? false : null;
 }
 
@@ -339,8 +346,10 @@ export function motivosSemProva(n: Newsletter, data: string, horaLimite: Date): 
   const maximo = maximoSeguidas(n);
   let seguidas = 1;
   for (let d = somarDias(data, -1), i = 0; seguidas < maximo && i < 62; d = somarDias(d, -1), i++) {
-    if (!ehDiaEsperado(n, d)) continue;
-    if (temEdicao(n, d)) break;
+    // O calendário desse dia, não o de hoje (calendario.ts).
+    const nd = newsletterDoRegisto(n, d);
+    if (!ehDiaEsperado(nd, d)) continue;
+    if (temEdicao(nd, d)) break;
     seguidas++;
   }
   if (seguidas >= maximo) {

@@ -357,3 +357,67 @@ test("entre o limite e as 6 h: 'Em atraso', nunca 'Não Saiu'", () => {
   registos.fecharVencidos({ ok: lisboa(dia, "09:00"), desde: lisboa("2026-08-01", "00:00") });
   assert.equal(registo("cm-exclusivos", dia).fechado, 0);
 });
+
+// ── 3b. Rede de segurança da campanha ──────────────────────────────────────
+
+test("com cara de edição (bloco de publicidade ou marca), a campanha nunca descarta", () => {
+  const geral = nl("record-geral");
+  const campanhas = {
+    dona: new Map([[uuid(10), "record-geral"], [uuid(11), "record-sporting"]]),
+    daNewsletter: new Map([["record-geral", new Set([uuid(10)])], ["record-sporting", new Set([uuid(11)])]]),
+  };
+  const m = (html: string) => marcas.extrairMarcas(html);
+  // Campanha nova, mas com o bloco de publicidade da Geral: template novo.
+  assert.equal(prova.campanhaDecide(geral, m(token(uuid(98), uuid(1)) + anuncio("RECORD", "GERAL2")), campanhas), null);
+  // Sem token, mas com a marca configurada: o Echobox mudou o link.
+  assert.equal(prova.campanhaDecide(geral, m(anuncio("RECORD", "GERAL")), campanhas), null);
+  // Campanha de outra newsletter com cara de edição: na dúvida, não descarta.
+  assert.equal(prova.campanhaDecide(geral, m(token(uuid(11), uuid(1)) + anuncio("RECORD", "X")), campanhas), null);
+});
+
+test("edição com template novo (campanha nova + bloco de publicidade) continua a travar o 'Não Saiu'", () => {
+  const dia = "2026-08-14";
+  registos.gerarDia(dia);
+  gravar(RECORD("Sporting"), "canário", lisboa(dia, "11:05"), "record-sporting", token(uuid(32), uuid(6)));
+  gravar(RECORD("Geral"), "Edição", lisboa(dia, "09:04"), null, token(uuid(97), uuid(7)) + anuncio("RECORD", "GERALNOVA"));
+  leituraBoa();
+  assert.deepEqual(estado("record-geral", dia), SEM_PROVA);
+});
+
+// ── 2b. Corrigir o passado de propósito ────────────────────────────────────
+
+test("descongelar aplica o calendário atual aos dias pedidos, e só a esses", async () => {
+  const { descongelar } = await import("../src/lib/calendario.ts");
+  const quarta = "2026-09-16";
+  const outra = "2026-09-23";
+  registos.gerarDia(quarta);
+  registos.gerarDia(outra);
+  const lex = nl("negocios-lex");
+  const antes = lex.diasSemana;
+  lex.diasSemana = [3, 4];
+  try {
+    assert.equal(descongelar("negocios-lex", quarta, quarta), 1);
+    registos.reavaliar("negocios-lex", quarta);
+    registos.reavaliar("negocios-lex", outra);
+    assert.notEqual(registo("negocios-lex", quarta).codigo_estado, 6, "o dia pedido passou a ser esperado");
+    assert.equal(registo("negocios-lex", outra).codigo_estado, 6, "os outros ficam como estavam");
+  } finally {
+    lex.diasSemana = antes;
+    descongelar("negocios-lex", quarta, quarta);
+    registos.reavaliar("negocios-lex", quarta);
+  }
+});
+
+test("as edições seguidas em falta contam pelo calendário de cada dia", async () => {
+  const { esperadoNoDia } = await import("../src/lib/calendario.ts");
+  const quarta = "2026-09-09";
+  registos.gerarDia(quarta);
+  const lex = nl("negocios-lex");
+  const antes = lex.diasSemana;
+  lex.diasSemana = [3, 4];
+  try {
+    assert.equal(esperadoNoDia(lex, quarta), false, "nessa quarta a Lex não era esperada");
+  } finally {
+    lex.diasSemana = antes;
+  }
+});
