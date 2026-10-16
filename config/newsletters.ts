@@ -53,10 +53,10 @@ export const NEWSLETTERS: Newsletter[] = [
     diasMes: null,
     horaPrevista: "07:00",
     toleranciaMinutos: 60,
-    remetentes: [],
+    remetentes: ["info@assinaturas.jornalrecord.pt"],
     padraoRemetente: "",
     padraoAssunto: "",
-    marcaCorpo: "",
+    marcaCorpo: "utm_campaign=premium%26utm_medium",
     ativa: true,
   },
   // Gerido

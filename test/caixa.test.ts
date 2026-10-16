@@ -101,7 +101,7 @@ test("nenhuma edição passa por marketing (0 falsos positivos)", () => {
 
 test("fora do âmbito do classificador: outros endereços, promoções e textos longos", () => {
   // Endereço que não é de nenhuma edição configurada.
-  assert.equal(eNaoEdicaoDoEditor(crm("x"), "Record Premium <info@assinaturas.jornalrecord.pt>"), false);
+  assert.equal(eNaoEdicaoDoEditor(crm("x"), "Record <info@projetos.jornalrecord.pt>"), false);
   assert.equal(eNaoEdicaoDoEditor(crm("x"), "Google <no-reply@accounts.google.com>"), false);
   // Comércio afiliado: não é campanha de CRM.
   assert.equal(eNaoEdicaoDoEditor(INDICA, "FLASH! Indica <info@news.flash.pt>"), false);
@@ -306,4 +306,14 @@ test("/api/saude é público: só o essencial, com o mesmo 200/503", async () =>
   assert.deepEqual(Object.keys(r.corpo).sort(), chaves);
   assert.equal(r.corpo.falha, null);
   assert.match(JSON.stringify(r.corpo), /"saudavel":true/);
+});
+
+test("Record Premium: a edição é reconhecida pela campanha; boas-vindas e reconquista não", () => {
+  const de = "Record Premium <info@assinaturas.jornalrecord.pt>";
+  const edicao =
+    '<a href="https://www.record.pt/x%3Futm_campaign=premium%26utm_medium=email%26utm_edition=1">A crónica</a>';
+  assert.equal(corresponder(de, "A crónica do Dinamarca-Portugal", edicao)?.id, "record-premium");
+  assert.equal(corresponder(de, "Bem-vindo(a) à Record Geral", "<p>Obrigado</p>"), null);
+  const plus = '<a href="https://www.record.pt/x%3Futm_campaign=premiumplus%26utm_medium=email">x</a>';
+  assert.equal(corresponder(de, "Manchete", plus), null);
 });

@@ -605,11 +605,11 @@ test("pagas: grupo de controlo — fecham e mostram 'Não Saiu', isentas das out
   registos.gerarDia(dia);
   // Nem o marketing da própria marca, nem a falta de canário, nem nunca ter
   // chegado nada travam o 5.
-  gravarEmail("Record Premium <info@assinaturas.jornalrecord.pt>", "Assine o Record Premium", lisboa(dia, "07:10"), null);
-  assert.deepEqual(prova.motivosSemProva(nl("record-premium"), dia, lisboa(dia, "08:00")), []);
+  gravarEmail("Record Premium <info@assinaturas.jornalrecord.pt>", "Assine o Record Premium Plus", lisboa(dia, "07:10"), null);
+  assert.deepEqual(prova.motivosSemProva(nl("record-premium-plus"), dia, lisboa(dia, "08:00")), []);
   leituraBoa();
-  assert.deepEqual(estado("record-premium", dia), NAO_SAIU);
-  assert.match(registo("record-premium", dia).detalhe, /→ Não Saiu.*Grupo de controlo/);
+  assert.deepEqual(estado("record-premium-plus", dia), NAO_SAIU);
+  assert.match(registo("record-premium-plus", dia).detalhe, /→ Não Saiu.*Grupo de controlo/);
   // O painel e o Excel mostram 5, mesmo sem remetente configurado.
   const f = { codigo: 5 as const, fechado: true, limitePassou: false, semEmail: true, paga: true, ressalva: null };
   assert.equal(apresentacao.variante(f), "controlo");

@@ -1,14 +1,14 @@
 /**
  * Newsletters pagas: as que, na coluna "Segmento" da folha "Horário" do
  * Excel, só vão para Assinantes (incluindo Premium Plus) — sem Registados.
- * A Record Premium vai também para Registados, mas é Premium no nome e no
- * produto, por isso conta. A Cripto está aberta a Registados só durante um
+ * A Record Premium NÃO está aqui: vai também para Registados, e a caixa
+ * recebeu-a de 30/09 a 05/10 (remetente info@assinaturas.jornalrecord.pt,
+ * campanha utm "premium"). A Cripto está aberta a Registados só durante um
  * mês (o asterisco no Excel), por isso conta como paga.
  *
  * Fica fora de `newsletters.ts` porque esse ficheiro é gerado pelo importador.
  */
 export const PAGAS = new Set<string>([
-  "record-premium",
   "negocios-assinantes-diaria",
   "sabado-a-sabado-e-todos-os-dias",
   "record-premium-plus",
