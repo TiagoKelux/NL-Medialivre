@@ -3,7 +3,8 @@ import { NEWSLETTERS, newsletterPorId } from "../../config/newsletters.ts";
 import { PAGAS } from "../../config/pagas.ts";
 import { classificar, type EdicaoAnterior, type Ocorrencia } from "./classificacao.ts";
 import { datasNoEmail, fraseData } from "./datas.ts";
-import { dataEdicao, intervaloDeBusca } from "./edicao.ts";
+import { PRAZO_ATRASO_MIN, dataEdicao, intervaloDeBusca } from "./edicao.ts";
+import { marcasDoEmail } from "./marcas.ts";
 import { naoEEdicao } from "./correspondencia.ts";
 import { motivosSemProva } from "./prova.ts";
 import { estadoLeitura } from "./leitura.ts";
@@ -27,6 +28,60 @@ export function horaLimiteDe(n: Newsletter, data: string): Date {
 }
 
 /**
+ * O fim do prazo: a hora prevista + 6 h. Até lá, nada recebido é "Em atraso"
+ * (pode ainda chegar como "Atrasada"); só depois pode ser "Não Saiu".
+ */
+export function fimDoPrazo(n: Newsletter, data: string): Date {
+  return somarMinutos(paraInstante(data, n.horaPrevista), PRAZO_ATRASO_MIN);
+}
+
+// ── Calendário de cada dia ─────────────────────────────────────────────────
+
+/**
+ * O calendário de uma newsletter tal como estava num dia: periodicidade,
+ * dias, hora, tolerância e se estava ativa. Fica gravado no registo
+ * (`registos.calendario`) e congela quando o dia passa: mudar o Excel hoje
+ * muda hoje e os dias seguintes, nunca o que já se passou — acrescentar a
+ * quarta-feira a uma semanal não pode transformar as quartas passadas em
+ * "Não Saiu". As regras de identificação e de classificação (o código)
+ * continuam a aplicar-se a todo o histórico; só o calendário fica fixo.
+ */
+type Calendario = Pick<
+  Newsletter,
+  "periodicidade" | "diasSemana" | "diasMes" | "horaPrevista" | "toleranciaMinutos" | "ativa"
+>;
+
+function calendarioDe(n: Newsletter): Calendario {
+  return {
+    periodicidade: n.periodicidade,
+    diasSemana: n.diasSemana,
+    diasMes: n.diasMes,
+    horaPrevista: n.horaPrevista,
+    toleranciaMinutos: n.toleranciaMinutos,
+    ativa: n.ativa,
+  };
+}
+
+function lerCalendario(json: string | null | undefined): Calendario | null {
+  if (!json) return null;
+  try {
+    const c = JSON.parse(json) as Calendario;
+    return typeof c.periodicidade === "string" && typeof c.horaPrevista === "string" ? c : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A newsletter com o calendário que vale para este dia: o gravado, se o dia
+ * já passou; o da configuração atual, se é hoje ou ainda não tem nenhum.
+ */
+export function newsletterNoDia(n: Newsletter, data: string, gravado: string | null | undefined): Newsletter {
+  const c = data < dataLocal() ? lerCalendario(gravado) : null;
+  return c ? { ...n, ...c } : n;
+}
+
+/**
  * §7.1 — Job das 00h05: gerar as linhas do dia.
  *
  * O estado parte de "Não Saiu" e só melhora com prova de que chegou. É o inverso
@@ -42,8 +97,8 @@ export function gerarDia(data: string = dataLocal()): number {
   const bd = db();
   const inserir = bd.prepare(`
     INSERT OR IGNORE INTO registos
-      (newsletter_id, data_prevista, hora_limite, codigo_estado, nr_ocorrencias, detalhe, fechado)
-    VALUES (?, ?, ?, ?, 0, ?, ?)
+      (newsletter_id, data_prevista, hora_limite, codigo_estado, nr_ocorrencias, detalhe, fechado, calendario)
+    VALUES (?, ?, ?, ?, 0, ?, ?, ?)
   `);
 
   let criados = 0;
@@ -60,7 +115,9 @@ export function gerarDia(data: string = dataLocal()): number {
       });
       // Código 6 nasce fechado: não há nada à espera de acontecer.
       const fechado = r.codigo === 6 ? 1 : 0;
-      const res = inserir.run(n.id, data, paraIso(horaLimite), r.codigo, r.detalhe, fechado);
+      const res = inserir.run(
+        n.id, data, paraIso(horaLimite), r.codigo, r.detalhe, fechado, JSON.stringify(calendarioDe(n)),
+      );
       criados += res.changes;
     }
   });
@@ -79,6 +136,8 @@ export function garantirDias(nrDias: number = 30): number {
 }
 
 interface EmailGuardado {
+  id: number;
+  marcas: string | null;
   recebido_em: string;
   hash_conteudo: string;
   assunto: string;
@@ -94,7 +153,7 @@ function emailsDaEdicao(n: Newsletter, data: string): EmailGuardado[] {
   const { inicio, fim } = intervaloDeBusca(data);
   const linhas = db()
     .prepare(
-      `SELECT recebido_em, hash_conteudo, assunto, corpo_html FROM emails
+      `SELECT id, marcas, recebido_em, hash_conteudo, assunto, corpo_html FROM emails
         WHERE newsletter_id = ? AND recebido_em >= ? AND recebido_em < ?
         ORDER BY recebido_em ASC`,
     )
@@ -141,10 +200,10 @@ function edicaoAnteriorDe(n: Newsletter, data: string): EdicaoAnterior | null {
 export function reavaliar(
   newsletterId: string,
   data: string,
-  opcoes: { lido?: boolean } = {},
+  opcoes: { leituraOk?: Date } = {},
 ): Registo | null {
-  const n = newsletterPorId(newsletterId);
-  if (!n) return null;
+  const configurada = newsletterPorId(newsletterId);
+  if (!configurada) return null;
 
   const bd = db();
   const lerRegisto = bd.prepare(
@@ -157,6 +216,7 @@ export function reavaliar(
     existente = lerRegisto.get(newsletterId, data) as Registo | undefined;
     if (!existente) return null;
   }
+  const n = newsletterNoDia(configurada, data, existente.calendario);
 
   // A hora limite vem sempre da configuração atual: se a hora prevista mudar,
   // um limite gravado à data da geração ficaria desatualizado.
@@ -173,7 +233,10 @@ export function reavaliar(
     newsletter: n,
     dataPrevista: data,
     horaLimite,
-    ocorrencias: emails.map((e) => ({ recebidoEm: new Date(e.recebido_em), ...conteudoDe(e) })),
+    ocorrencias: emails.map((e) => {
+      const eb = marcasDoEmail(e.id, e.marcas).eb;
+      return { recebidoEm: new Date(e.recebido_em), ...conteudoDe(e), envio: eb?.envio, destino: eb?.destino };
+    }),
     edicaoAnterior: edicaoAnteriorDe(n, data),
     fechado: fechado === 1,
   });
@@ -195,35 +258,56 @@ export function reavaliar(
   // email", se não houver remetente) e o detalhe diz porquê. O código continua
   // 5 na base de dados (o CHECK só aceita 1 a 6); é `fechado = 0` que impede
   // que seja lido como "Não Saiu". Nunca se escreve "→ Não Saiu" sem prova.
-  if (r.codigo === 5 && horaLimite <= agora) {
+  const prazo = fimDoPrazo(n, data);
+  if (r.codigo === 5 && r.foraDePrazo) {
+    // Chegou mais de 6 h depois da hora prevista: o próprio email prova que a
+    // caixa recebe. "Não Saiu (fora de prazo)" fecha sem mais provas.
+    fechado = 1;
+  } else if (r.codigo === 5 && horaLimite <= agora && agora < prazo) {
+    // Passou o limite mas não o prazo: ainda pode chegar como "Atrasada".
+    // Nunca "Não Saiu" antes de passarem as 6 h.
+    fechado = 0;
+    detalhe =
+      `Em atraso: nada recebido até ao limite das ${horaLocal(horaLimite)}. Se chegar até às ` +
+      `${horaLocal(prazo)} é "Atrasada"; depois disso é "Não Saiu".`;
+  } else if (r.codigo === 5 && horaLimite <= agora) {
     const limite = horaLocal(horaLimite);
-    // "Não recebida" só depois de a caixa ter sido lida depois do limite:
-    // antes disso (arranque depois de uma paragem, leitura a falhar) o email
-    // pode estar na caixa por ler — é "Por confirmar".
-    const lido = opcoes.lido ?? (fechado === 1 || leituraCobre(data, horaLimite));
+    // "Não recebida" só depois de a caixa ter sido lida depois do fim do
+    // prazo: antes disso (arranque depois de uma paragem, leitura a falhar)
+    // o email pode estar na caixa por ler — é "Por confirmar".
+    // Só o `fecharVencidos` fecha um 5, e só com uma leitura depois do prazo:
+    // um registo já fechado já tem essa prova.
+    const lido = opcoes.leituraOk
+      ? opcoes.leituraOk.getTime() >= prazo.getTime() + MARGEM_FECHO_MIN * 60_000
+      : fechado === 1 || leituraCobre(data, prazo);
     const motivos = lido ? motivosSemProva(n, data, horaLimite) : [];
     if (!lido) {
       fechado = 0;
       detalhe =
-        `Nada recebido até ao limite das ${limite}. Por confirmar: falta uma leitura ` +
-        `bem-sucedida da caixa, feita depois do limite, que cubra este dia sem intervalos.`;
+        `Nada recebido até às ${horaLocal(prazo)} (limite ${limite}, mais 6 h de prazo). Por confirmar: ` +
+        `falta uma leitura bem-sucedida da caixa, feita depois disso, que cubra este dia sem intervalos.`;
     } else if (motivos.length > 0) {
       fechado = 0;
       ressalva = "sem-prova";
-      detalhe = `Nada recebido até ao limite das ${limite}, mas não se pode afirmar "Não Saiu": ${motivos.join("; ")}.`;
+      detalhe =
+        `Nada recebido até às ${horaLocal(prazo)} (limite ${limite}, mais 6 h de prazo), mas não se pode ` +
+        `afirmar "Não Saiu": ${motivos.join("; ")}.`;
     } else if (fechado === 0) {
       detalhe =
-        `Nada recebido até ao limite das ${limite}. Por confirmar: falta uma leitura ` +
-        `bem-sucedida da caixa, feita depois do limite, que cubra este dia sem intervalos.`;
-    } else if (PAGAS.has(n.id)) {
-      detalhe = `${detalhe} Grupo de controlo: newsletter paga, a caixa não está inscrita nela de propósito.`;
+        `Nada recebido até às ${horaLocal(prazo)} (limite ${limite}, mais 6 h de prazo). Por confirmar: ` +
+        `falta uma leitura bem-sucedida da caixa, feita depois disso, que cubra este dia sem intervalos.`;
+    } else {
+      detalhe = `Nada recebido até às ${horaLocal(prazo)} (limite ${limite}, mais 6 h de prazo) → Não Saiu.`;
+      if (PAGAS.has(n.id)) {
+        detalhe = `${detalhe} Grupo de controlo: newsletter paga, a caixa não está inscrita nela de propósito.`;
+      }
     }
   }
 
   bd.prepare(
     `UPDATE registos
         SET hora_limite = ?, hora_recebida = ?, atraso_minutos = ?, codigo_estado = ?,
-            nr_ocorrencias = ?, detalhe = ?, fechado = ?, ressalva = ?
+            nr_ocorrencias = ?, detalhe = ?, fechado = ?, ressalva = ?, calendario = ?
       WHERE id = ?`,
   ).run(
     paraIso(horaLimite),
@@ -234,6 +318,7 @@ export function reavaliar(
     detalhe,
     fechado,
     ressalva,
+    JSON.stringify(calendarioDe(n)),
     existente.id,
   );
 
@@ -293,7 +378,7 @@ export function fecharVencidos(leitura: { ok: Date; desde: Date }): number {
     bd.prepare(`UPDATE registos SET fechado = 1 WHERE id = ?`).run(reg.id);
     // Depois de fechar, para que o detalhe use a redação de dia fechado. Se o
     // 5 não tiver prova de ausência, o `reavaliar` volta a abri-lo.
-    const r = reavaliar(reg.newsletter_id, reg.data_prevista, { lido: true });
+    const r = reavaliar(reg.newsletter_id, reg.data_prevista, { leituraOk: leitura.ok });
     if (r?.fechado === 1) fechados++;
   }
   return fechados;
@@ -333,11 +418,20 @@ export interface LinhaGrelha extends Registo {
   tem_conteudo: boolean;
   /** Em aberto com a hora limite já passada: à espera de uma leitura que o confirme. */
   limite_passou: boolean;
+  /** Passou o limite, nada chegou, mas ainda não passaram as 6 h do prazo. */
+  em_atraso: boolean;
 }
 
 /** Registo por fechar cuja hora limite já passou — ainda sem prova num sentido ou noutro. */
 function limitePassou(reg: Registo, agora: Date): boolean {
   return reg.fechado === 0 && new Date(reg.hora_limite) <= agora;
+}
+
+/** 5 em aberto, nada recebido, limite passado, prazo de 6 h ainda a correr. */
+export function emAtraso(reg: Registo, agora: Date): boolean {
+  const n = newsletterPorId(reg.newsletter_id);
+  if (!n || reg.codigo_estado !== 5 || reg.nr_ocorrencias > 0 || !limitePassou(reg, agora)) return false;
+  return agora < fimDoPrazo(newsletterNoDia(n, reg.data_prevista, reg.calendario), reg.data_prevista);
 }
 
 function enriquecer(reg: Registo, comConteudo: Set<string>): LinhaGrelha {
@@ -351,6 +445,7 @@ function enriquecer(reg: Registo, comConteudo: Set<string>): LinhaGrelha {
     dias_semana: n?.diasSemana ?? null,
     tem_conteudo: comConteudo.has(`${reg.newsletter_id}|${reg.data_prevista}`),
     limite_passou: limitePassou(reg, new Date()),
+    em_atraso: emAtraso(reg, new Date()),
   };
 }
 
@@ -373,6 +468,7 @@ export interface Celula {
   detalhe: string;
   fechado: boolean;
   limitePassou: boolean;
+  emAtraso: boolean;
   temConteudo: boolean;
   ressalva: Ressalva | null;
 }
@@ -406,6 +502,7 @@ export function matriz(dias: string[]): Matriz {
           detalhe: r.detalhe,
           fechado: r.fechado === 1,
           limitePassou: limitePassou(r, agora),
+          emAtraso: emAtraso(r, agora),
           temConteudo: comConteudo.has(`${n.id}|${d}`),
           ressalva: r.ressalva ?? null,
         };

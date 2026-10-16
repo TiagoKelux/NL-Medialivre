@@ -1,5 +1,7 @@
 import type { CodigoEstado, Newsletter } from "./tipos.ts";
-import { diaMes, diaSemanaISO, horaLocal, minutosEntre } from "./tempo.ts";
+import { dataLocal as dataDe, diaMes, diaSemanaISO, horaLocal, minutosEntre, paraInstante, somarMinutos } from "./tempo.ts";
+import { feriado } from "./feriados.ts";
+import { PRAZO_ATRASO_MIN } from "./edicao.ts";
 import { hashConteudo, semelhancaArtigos } from "./conteudo.ts";
 
 /**
@@ -46,6 +48,13 @@ export interface Ocorrencia {
   hash: string;
   /** Artigos para onde a edição aponta (`extrairArtigos`). */
   artigos?: string[];
+  /**
+   * O envio do editor, lido do token "ver no browser" do Echobox
+   * (`marcas.ts`): o mesmo id = o mesmo envio, entregue mais de uma vez.
+   */
+  envio?: string | null;
+  /** O endereço para onde o editor mandou este envio (do mesmo token). */
+  destino?: string | null;
 }
 
 export interface EdicaoAnterior {
@@ -77,6 +86,8 @@ export interface Resultado {
    * não prova "conteúdo atualizado". Não muda o código.
    */
   semComparacao?: boolean;
+  /** Chegou, mas mais de PRAZO_ATRASO_MIN depois da hora prevista: é um 5. */
+  foraDePrazo?: boolean;
   /**
    * Hash diferente, mas a maioria dos artigos (Jaccard ≥ LIMIAR_ARTIGOS, < 1)
    * é a da edição anterior. Só aviso no detalhe: não muda o código.
@@ -91,7 +102,7 @@ export function ehDiaEsperado(n: Newsletter, data: string): boolean {
     case "diaria":
       return true;
     case "dias_uteis":
-      return dow >= 1 && dow <= 5;
+      return dow >= 1 && dow <= 5 && feriado(data) === null;
     case "dia_semana":
       return (n.diasSemana ?? []).includes(dow);
     case "dia_mes":
@@ -107,7 +118,7 @@ function descreverPeriodicidade(n: Newsletter): string {
     case "diaria":
       return "esperada todos os dias";
     case "dias_uteis":
-      return "esperada de 2.ª a 6.ª";
+      return "esperada de 2.ª a 6.ª, exceto feriados";
     case "dia_semana": {
       // "à quinta-feira", mas "ao sábado" e "ao domingo".
       const dias = (n.diasSemana ?? [])
@@ -139,7 +150,20 @@ export function classificar(ctx: Contexto): Resultado {
     };
   }
 
-  if (!ehDiaEsperado(n, ctx.dataPrevista)) {
+  // Num feriado, uma "dias úteis" não é esperada; mas se chegou, saiu — conta
+  // como qualquer outro dia (umas saem nos feriados e outras não).
+  const nomeFeriado = n.periodicidade === "dias_uteis" ? feriado(ctx.dataPrevista) : null;
+  if (nomeFeriado && nrOcorrencias === 0) {
+    return {
+      codigo: 6,
+      horaRecebida: null,
+      atrasoMinutos: null,
+      nrOcorrencias,
+      detalhe: `Feriado nacional (${nomeFeriado}): não prevista (${descreverPeriodicidade(n)}).`,
+    };
+  }
+
+  if (!nomeFeriado && !ehDiaEsperado(n, ctx.dataPrevista)) {
     const dia = NOMES_DIAS[diaSemanaISO(ctx.dataPrevista) - 1];
     // O código não muda, mas um envio fora do calendário não pode passar em
     // silêncio: pode ser que o calendário configurado esteja errado.
@@ -176,9 +200,37 @@ export function classificar(ctx: Contexto): Resultado {
   const ordenadas = [...ocorrencias].sort(
     (a, b) => a.recebidoEm.getTime() - b.recebidoEm.getTime(),
   );
-  const primeira = ordenadas[0];
+  const { envios, destinos } = agruparEnvios(ordenadas);
+  const nrEnvios = envios.length;
+  const primeira = envios[0];
   const horaRecebida = primeira.recebidoEm;
   const atrasoMinutos = Math.max(0, minutosEntre(ctx.horaLimite, horaRecebida));
+  const notaCaixa =
+    destinos.length > 1
+      ? ` Atenção: a caixa recebe esta newsletter em ${destinos.length} endereços (${destinos.join(", ")}) — ` +
+        `está inscrita mais de uma vez; só conta o que chegou a ${destinos[0]}.`
+      : nrOcorrencias > nrEnvios
+        ? ` O mesmo envio do editor chegou ${nrOcorrencias} vezes — conta como um.`
+        : "";
+
+  // ── 5: chegou, mas mais de 6 h depois da hora prevista ──────────────────
+  // Até 6 h depois é "Atrasada"; depois disso a edição já não saiu no dia
+  // dela. O email prova que a caixa recebe, por isso fecha sem mais provas.
+  const prevista = paraInstante(ctx.dataPrevista, n.horaPrevista);
+  if (horaRecebida > somarMinutos(prevista, PRAZO_ATRASO_MIN)) {
+    const horas = Math.floor(minutosEntre(prevista, horaRecebida) / 60);
+    return {
+      codigo: 5,
+      horaRecebida,
+      atrasoMinutos,
+      nrOcorrencias: nrEnvios,
+      foraDePrazo: true,
+      detalhe:
+        `Chegou só às ${horaLocal(horaRecebida)}${diaSeOutro(ctx.dataPrevista, horaRecebida)}, ` +
+        `${horas} h depois da hora prevista (${n.horaPrevista}) — mais de ${PRAZO_ATRASO_MIN / 60} h → ` +
+        `Não Saiu (fora de prazo).${notaCaixa}`,
+    };
+  }
 
   const fraseJanela =
     atrasoMinutos > 0
@@ -222,14 +274,19 @@ export function classificar(ctx: Contexto): Resultado {
   const base = {
     horaRecebida,
     atrasoMinutos,
-    nrOcorrencias,
+    nrOcorrencias: nrEnvios,
     semComparacao: !comparavel,
     ...(provavelmenteRepetida ? { provavelmenteRepetida: true } : {}),
   };
 
   // ── 3: dois envios distintos na mesma janela ────────────────────────────
-  if (nrOcorrencias >= 2) {
-    const horas = ordenadas.map((o) => horaLocal(o.recebidoEm)).join(", ");
+  // Distintos = ids de envio do editor diferentes (provado pelo token), ou,
+  // sem token, Message-IDs diferentes.
+  if (nrEnvios >= 2) {
+    const horas = envios.map((o) => horaLocal(o.recebidoEm)).join(", ");
+    const prova = envios.every((o) => o.envio)
+      ? `${nrEnvios} envios distintos do editor (ids de envio diferentes)`
+      : `${nrEnvios} envios distintos`;
     // O 3 tem precedência, mas um primeiro envio requentado não pode passar
     // em silêncio (maxima-geral 02/10: a edição de ontem e, 30 min depois, a
     // correção do próprio editor).
@@ -238,20 +295,54 @@ export function classificar(ctx: Contexto): Resultado {
     return {
       ...base,
       codigo: 3,
-      detalhe: `${nrOcorrencias} envios distintos no mesmo dia (${horas}) → Duplicada. ${fraseJanela}${conteudoPrimeiro}`,
+      detalhe: `${prova} no mesmo dia (${horas}) → Duplicada. ${fraseJanela}${conteudoPrimeiro}${notaCaixa}`,
     };
   }
 
   // ── 4: conteúdo igual ao da edição anterior ─────────────────────────────
   if (repetido) {
-    return { ...base, codigo: 4, detalhe: `${fraseJanela} ${fraseConteudo}` };
+    return { ...base, codigo: 4, detalhe: `${fraseJanela} ${fraseConteudo}${notaCaixa}` };
   }
 
   // ── 2: fora da janela ───────────────────────────────────────────────────
   if (atrasoMinutos > 0) {
-    return { ...base, codigo: 2, detalhe: `${fraseJanela} ${fraseConteudo}` };
+    return { ...base, codigo: 2, detalhe: `${fraseJanela} ${fraseConteudo}${notaCaixa}` };
   }
 
   // ── 1: dentro da janela, conteúdo novo, um só envio ─────────────────────
-  return { ...base, codigo: 1, detalhe: `${fraseJanela} ${fraseConteudo}` };
+  return { ...base, codigo: 1, detalhe: `${fraseJanela} ${fraseConteudo}${notaCaixa}` };
+}
+
+/**
+ * Os envios distintos que um mesmo leitor recebeu. Junta o que é o mesmo
+ * envio do editor (mesmo id de envio no token — uma reentrega) e conta num
+ * endereço só, o do primeiro email com token: a caixa inscrita com dois
+ * endereços (o Gmail ignora os pontos — nl.medialivre e nlmedialivre são a
+ * mesma caixa) recebe dois emails, mas cada leitor recebeu um. Sem token,
+ * cada Message-ID é um envio.
+ */
+function agruparEnvios(ordenadas: Ocorrencia[]): { envios: Ocorrencia[]; destinos: string[] } {
+  const principal = ordenadas.find((o) => o.destino)?.destino?.toLowerCase() ?? null;
+  const outros = new Set<string>();
+  const vistos = new Set<string>();
+  const envios: Ocorrencia[] = [];
+  for (const o of ordenadas) {
+    const destino = o.destino?.toLowerCase() ?? null;
+    if (destino && principal && destino !== principal) {
+      outros.add(destino);
+      continue;
+    }
+    if (o.envio) {
+      if (vistos.has(o.envio)) continue;
+      vistos.add(o.envio);
+    }
+    envios.push(o);
+  }
+  return { envios, destinos: outros.size > 0 ? [principal!, ...outros] : [] };
+}
+
+/** " de 11/10" quando o instante já é de outro dia local; senão "". */
+function diaSeOutro(data: string, instante: Date): string {
+  const dia = dataDe(instante);
+  return dia === data ? "" : ` de ${diaMes(dia)}`;
 }

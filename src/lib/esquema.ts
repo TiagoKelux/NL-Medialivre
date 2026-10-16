@@ -43,6 +43,9 @@ CREATE TABLE IF NOT EXISTS registos (
   -- Ressalva ao código, sem o mudar (ver tipos.ts). Em bases antigas é
   -- acrescentada pelo db.ts.
   ressalva       TEXT             DEFAULT NULL CHECK (ressalva IN ('sem-prova', 'sem-comparacao')),
+  -- O calendário da newsletter nesse dia, em JSON: congela quando o dia passa
+  -- (registos.ts, newsletterNoDia). Em bases antigas é acrescentada pelo db.ts.
+  calendario     TEXT             DEFAULT NULL,
   -- Um registo por newsletter por dia. É o que garante a ausência de buracos
   -- e a ausência de duplicados na matriz.
   UNIQUE (newsletter_id, data_prevista)

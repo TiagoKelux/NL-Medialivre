@@ -115,6 +115,8 @@ export interface Registo {
    *   "conteúdo atualizado" não está provado.
    */
   ressalva: Ressalva | null;
+  /** O calendário da newsletter nesse dia, em JSON (`newsletterNoDia`). */
+  calendario: string | null;
 }
 
 export type Ressalva = "sem-prova" | "sem-comparacao";

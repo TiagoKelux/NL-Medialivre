@@ -35,10 +35,32 @@ export interface Marcas {
   crm: number;
   /** Comprimento do texto visível (sem etiquetas, entidades contam 1). */
   txt: number;
+  /** O envio do Echobox, lido do token "ver no browser" (`lerEnvio`); null sem token. */
+  eb: Envio | null;
+}
+
+/**
+ * O que o token "ver no browser" do Echobox diz de um email. Todas as edições
+ * de 29/09 a 15/10 (119 de 119, de todas as marcas) o trazem; o marketing do
+ * editor (boas-vindas, reconquista) quase nunca. O token é um JWT assinado
+ * pelo Echobox; só se lê o conteúdo, não se valida a assinatura — não é
+ * preciso: serve para comparar emails entre si, e quem o forjasse estaria a
+ * enganar-se a si próprio.
+ *
+ * - campanha: uma por newsletter (25 newsletters, 25 campanhas, nenhuma
+ *   partilhada; as promoções "Indica" e as reconquistas têm as suas);
+ * - envio: um por envio da campanha — duas edições no mesmo dia com envios
+ *   diferentes são dois envios para os leitores (Máxima 02/10, 09:03 e 09:33);
+ * - destino: o endereço para onde foi.
+ */
+export interface Envio {
+  campanha: string;
+  envio: string;
+  destino: string;
 }
 
 /** Sobe quando o extrator muda: obriga a extrair tudo outra vez. */
-const VERSAO_EXTRATOR = "1";
+const VERSAO_EXTRATOR = "2";
 
 /**
  * O HTML traz o mesmo endereço do anúncio umas vezes com "/" e outras com
@@ -92,6 +114,24 @@ export function comprimentoTexto(html: string): number {
     .trim().length;
 }
 
+const TOKEN_ECHOBOX = /viewinbrowser(?:\?|%3f)token(?:=|%3d)[A-Za-z0-9_-]+\.([A-Za-z0-9_-]+)\./i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** O envio do Echobox que o email traz, ou null se não trouxer um token legível. */
+export function lerEnvio(html: string): Envio | null {
+  const m = html.match(TOKEN_ECHOBOX);
+  if (!m) return null;
+  try {
+    const p = JSON.parse(Buffer.from(m[1], "base64url").toString("utf8")) as Record<string, unknown>;
+    const [campanha, envio] = String(p["custom:key"] ?? "").split("/");
+    const destino = typeof p.email === "string" ? p.email.trim().toLowerCase() : "";
+    if (!UUID.test(campanha ?? "") || !UUID.test(envio ?? "") || !destino) return null;
+    return { campanha: campanha.toLowerCase(), envio: envio.toLowerCase(), destino };
+  } catch {
+    return null;
+  }
+}
+
 export function extrairMarcas(html: string, newsletters: Newsletter[] = NEWSLETTERS): Marcas {
   const corpo = normalizarHtml(html);
   return {
@@ -100,6 +140,7 @@ export function extrairMarcas(html: string, newsletters: Newsletter[] = NEWSLETT
     pub: PUBLICIDADE_EDICAO.test(corpo),
     crm: (corpo.match(/assets\.unlayer\.com\//g) ?? []).length,
     txt: comprimentoTexto(html),
+    eb: lerEnvio(html),
   };
 }
 
@@ -154,4 +195,51 @@ export function garantirMarcas(): number {
     }
   })();
   return ids.length;
+}
+
+// ── Campanhas do Echobox ───────────────────────────────────────────────────
+
+/** Que newsletter manda cada campanha, aprendido das edições já atribuídas. */
+export interface Campanhas {
+  /** campanha → newsletter (só as campanhas de uma newsletter só). */
+  dona: Map<string, string>;
+  /** newsletter → as suas campanhas. */
+  daNewsletter: Map<string, Set<string>>;
+}
+
+let campanhasEmCache: { em: number; valor: Campanhas } | null = null;
+const VALIDADE_CAMPANHAS_MS = 60_000;
+
+/** Esquecer as campanhas aprendidas: chamado quando os emails ou a atribuição mudam. */
+export function esquecerCampanhas(): void {
+  campanhasEmCache = null;
+}
+
+/**
+ * As campanhas de cada newsletter, aprendidas das edições que a `marcaCorpo`
+ * já atribuiu — nunca escritas à mão. Uma campanha vista em duas newsletters
+ * não serve de prova para nenhuma e fica de fora.
+ */
+export function lerCampanhas(): Campanhas {
+  const agora = Date.now();
+  if (campanhasEmCache && agora - campanhasEmCache.em < VALIDADE_CAMPANHAS_MS) return campanhasEmCache.valor;
+  const linhas = db()
+    .prepare(
+      `SELECT DISTINCT newsletter_id AS n, json_extract(marcas, '$.eb.campanha') AS c
+         FROM emails INDEXED BY idx_emails_identificacao
+        WHERE newsletter_id IS NOT NULL AND json_extract(marcas, '$.v') = ?
+          AND json_extract(marcas, '$.eb.campanha') IS NOT NULL`,
+    )
+    .all(versaoMarcas()) as { n: string; c: string }[];
+  const donos = new Map<string, Set<string>>();
+  for (const l of linhas) donos.set(l.c, (donos.get(l.c) ?? new Set()).add(l.n));
+  const valor: Campanhas = { dona: new Map(), daNewsletter: new Map() };
+  for (const [c, ns] of donos) {
+    if (ns.size !== 1) continue;
+    const n = [...ns][0];
+    valor.dona.set(c, n);
+    valor.daNewsletter.set(n, (valor.daNewsletter.get(n) ?? new Set()).add(c));
+  }
+  campanhasEmCache = { em: agora, valor };
+  return valor;
 }

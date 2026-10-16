@@ -18,15 +18,90 @@ código de 1 a 6 e mostra tudo numa página.
 | Código | Designação | Regra |
 |---|---|---|
 | 1 | Saiu e Tem Conteúdo Atualizado | Dentro da janela, conteúdo diferente do anterior, um só envio |
-| 2 | Saiu Atrasada | Chegou depois de `horaPrevista + toleranciaMinutos` |
-| 3 | Saiu Duplicada | Dois emails distintos na mesma janela |
+| 2 | Saiu Atrasada | Chegou depois de `horaPrevista + toleranciaMinutos`, até 6 h depois da `horaPrevista` |
+| 3 | Saiu Duplicada | Dois envios distintos do editor ao mesmo endereço, na mesma janela (ver "Duplicados") |
 | 4 | Saiu com Conteúdo Desatualizado | Hash do texto normalizado igual ao da edição anterior, ou exatamente os mesmos artigos (≥ 3) |
-| 5 | Não Saiu | Fechou o dia e não chegou nada — só com prova de ausência (ver abaixo) |
-| 6 | Desativada / Não agendada | `ativa: false`, ou hoje não é dia esperado |
+| 5 | Não Saiu | Nada até 6 h depois da `horaPrevista`, com prova de ausência (ver abaixo); ou chegou mais tarde do que isso ("fora de prazo") |
+| 6 | Desativada / Não agendada | `ativa: false`, ou hoje não é dia esperado (as "dias úteis" não são esperadas nos feriados nacionais) |
 
 Precedência, do mais grave para o menos: **6 → 5 → 3 → 4 → 2 → 1**. O 6 avalia-se
 primeiro e faz curto-circuito. O `codigo_estado` tem um `CHECK (BETWEEN 1 AND 6)`
 na base de dados: é impossível gravar outra coisa.
+
+### Janela e prazo
+
+A edição de um dia D é tudo o que chega entre **6 h antes e 18 h depois** da
+`horaPrevista` em D (`src/lib/edicao.ts`). Dentro dela:
+
+- até `horaPrevista + toleranciaMinutos` → no prazo (1, 3 ou 4);
+- até **6 h depois** da `horaPrevista` → **2 Atrasada**. A das 21:00 que chega
+  às 00:30 do dia seguinte é Atrasada no seu dia;
+- mais tarde → **5 Não Saiu (fora de prazo)**, no dia dela. O detalhe diz a
+  que horas chegou. Não passa para o dia seguinte.
+
+Entre o limite e as 6 h, sem nada recebido, o painel mostra **Em atraso –
+ainda não chegou** (`!`), nunca "Não Saiu": pode ainda chegar como Atrasada. O
+"Não Saiu" por ausência só fecha com uma leitura da caixa feita depois das
+6 h. De 29/09 a 15/10, o maior adiantamento real foi de 1 h 27 min e o maior
+atraso de 1 h 33 min.
+
+### Feriados
+
+`src/lib/feriados.ts`: os 13 feriados nacionais obrigatórios, incluindo os
+móveis (Sexta-feira Santa, Páscoa e Corpo de Deus). O Carnaval e os feriados
+municipais não contam. Num feriado, uma newsletter de "dias úteis":
+
+- se não chegar nada → **6**, "Feriado nacional (…): não prevista";
+- se chegar → conta como qualquer outro dia. A 05/10/2026 saíram a Abertura,
+  a Opinião, a Tecnologia e o Fecho do Negócios, e a 5 Coisas não.
+
+### Calendário de cada dia
+
+Cada registo grava o calendário da newsletter nesse dia (`registos.calendario`:
+periodicidade, dias, hora, tolerância, ativa). Quando o dia passa, esse
+calendário fica congelado. Mudar o Excel hoje muda hoje e os dias seguintes,
+nunca o que já passou. As regras de identificação e de classificação
+continuam a aplicar-se a todo o histórico.
+
+### Edição ou não: a campanha do Echobox
+
+Todas as edições trazem um link "ver no browser" do Echobox com um token
+(JWT). O token diz a **campanha**, o **envio** e o **destinatário**
+(`lerEnvio`, em `src/lib/marcas.ts`). Medido de 29/09 a 15/10:
+
+- 119 edições de 119 trazem o token;
+- há uma campanha por newsletter (25 newsletters, 25 campanhas), e nenhuma
+  campanha é partilhada;
+- o marketing (boas-vindas, reconquista, "Indica", Record Premium) não traz
+  token, ou vem de campanhas próprias.
+
+As campanhas de cada newsletter são **aprendidas** das edições que a
+`marcaCorpo` atribuiu (`lerCampanhas`), nunca escritas à mão. Um email por
+atribuir só trava o "Não Saiu" de uma newsletter (regra 4 da prova) se:
+
+- vier da campanha dela;
+- ou, enquanto ela não tem campanha conhecida, se a heurística do remetente
+  o achar plausível.
+
+Vir da campanha de outra newsletter, de uma campanha nova, ou sem token
+quando as edições dela o trazem, deixa de travar (`campanhaDecide`, em
+`prova.ts`). Nos dados reais, isto tirou os 5 bloqueios falsos que havia,
+todos promoções "FLASH! Indica".
+
+Os emails marcados no painel como **"não é newsletter"** também deixam de
+travar o "Não Saiu".
+
+### Duplicados
+
+A análise completa está em [docs/ANALISE-DUPLICADOS.md](docs/ANALISE-DUPLICADOS.md).
+Pelo token, cada email diz de que envio do editor vem e para que endereço foi:
+
+- o **mesmo envio** a chegar duas vezes (reentrega) conta como um;
+- a **caixa inscrita com dois endereços** (o Gmail ignora os pontos) conta só
+  o primeiro endereço, e o detalhe avisa;
+- **dois envios distintos ao mesmo endereço** → **3 Duplicada**, "ids de envio
+  diferentes";
+- sem token, cada Message-ID diferente continua a ser um envio.
 
 ### Conteúdo repetido
 
@@ -66,7 +141,7 @@ recebida – sem prova** (ressalva `sem-prova`), ou **Não assinada no email** s
 não tiver remetente, com o detalhe a dizer porquê. A prova exige
 (`src/lib/prova.ts`):
 
-1. uma leitura bem-sucedida da caixa depois do limite (mais 10 min de margem),
+1. uma leitura bem-sucedida da caixa depois do fim do prazo, `horaPrevista` + 6 h (mais 10 min de margem),
    com a cobertura contínua das leituras a abranger toda a janela da edição;
 2. remetentes configurados;
 3. pelo menos um email da newsletter recebido **antes** desse dia (prova de

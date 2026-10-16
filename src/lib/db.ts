@@ -56,6 +56,10 @@ export function db(): Database.Database {
     );
   }
 
+  if (!colunas.some((c) => c.name === "calendario")) {
+    bd.exec(`ALTER TABLE registos ADD COLUMN calendario TEXT DEFAULT NULL`);
+  }
+
   // Marcas extraídas do corpo à entrada (marcas.ts). Em bases antigas a
   // coluna nasce vazia e é preenchida pelo `garantirMarcas`, uma vez.
   const colunasEmails = bd.prepare(`PRAGMA table_info(emails)`).all() as { name: string }[];

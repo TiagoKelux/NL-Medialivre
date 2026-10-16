@@ -12,6 +12,8 @@ import { DESIGNACOES, type CodigoEstado, type Ressalva } from "./tipos.ts";
  *   não reconhece os seus emails, nenhum estado dela quer dizer nada;
  * - "aguarda": registo ainda antes da hora limite. Na base de dados nasce com
  *   o código 5, mas "Não Saiu" só é verdade depois de fechar;
+ * - "em-atraso": passou a hora limite e nada chegou, mas ainda não passaram
+ *   as 6 h do prazo — pode chegar como "Atrasada"; só depois é "Não Saiu";
  * - "sem-prova": a hora limite passou, nada chegou, mas não há prova de
  *   ausência (caixa não inscrita, editor deixou de enviar, sem canário, email
  *   por atribuir que pode ser dela… — o detalhe diz qual);
@@ -25,6 +27,7 @@ export type Variante =
   | "controlo"
   | "sem-email"
   | "aguarda"
+  | "em-atraso"
   | "sem-prova"
   | "por-confirmar"
   | "sem-comparacao"
@@ -34,6 +37,8 @@ export interface Factos {
   codigo: CodigoEstado;
   fechado: boolean;
   limitePassou: boolean;
+  /** Limite passado, nada recebido, prazo de 6 h ainda a correr. */
+  emAtraso?: boolean;
   /** Newsletter sem remetente configurado. */
   semEmail: boolean;
   paga: boolean;
@@ -49,6 +54,7 @@ export function variante(f: Factos): Variante {
   }
   if (!f.fechado && f.codigo === 5) {
     if (!f.limitePassou) return "aguarda";
+    if (f.emAtraso) return "em-atraso";
     return f.ressalva === "sem-prova" ? "sem-prova" : "por-confirmar";
   }
   if (f.codigo === 1 && f.ressalva === "sem-comparacao") return "sem-comparacao";
@@ -59,6 +65,7 @@ export const ROTULO: Record<Exclude<Variante, null>, { digito: string; texto: st
   controlo: { digito: "5", texto: `${DESIGNACOES[5]} (controlo)` },
   "sem-email": { digito: "–", texto: "Não assinada no email" },
   aguarda: { digito: "…", texto: "A aguardar" },
+  "em-atraso": { digito: "!", texto: "Em atraso – ainda não chegou" },
   "sem-prova": { digito: "∅", texto: "Não recebida – sem prova" },
   "por-confirmar": { digito: "?", texto: "Por confirmar" },
   "sem-comparacao": { digito: "S", texto: "Saiu (sem termo de comparação)" },

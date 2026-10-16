@@ -171,6 +171,7 @@ section > h2 {
 .sem-email .digito { background: var(--sem-email-fundo); color: var(--sem-email); }
 .por-confirmar .digito { background: var(--c2-fundo); color: var(--c2); border: 1px dashed var(--c2); }
 .aguarda .digito { background: var(--papel); color: var(--texto-fraco); border: 1px dashed var(--borda); }
+.em-atraso .digito { background: var(--c2-fundo); color: var(--c2); border: 1px solid var(--c2); }
 .controlo .digito { background: var(--c5-fundo); color: var(--c5); }
 .sem-prova .digito { background: var(--c6-fundo); color: var(--c6); border: 1px dashed var(--c5); }
 .sem-comparacao .digito { background: var(--c1-fundo); color: var(--c1); border: 1px dashed var(--c1); }
@@ -252,6 +253,7 @@ section > h2 {
 .celula.sem-email { background: var(--sem-email-fundo); color: var(--sem-email); }
 .celula.por-confirmar { background: var(--c2-fundo); color: var(--c2); border: 1px dashed var(--c2); }
 .celula.aguarda { background: var(--papel); color: var(--texto-fraco); border-color: var(--borda); }
+.celula.em-atraso { background: var(--c2-fundo); color: var(--c2); border: 1px solid var(--c2); }
 .celula.controlo { background: var(--c5-fundo); color: var(--c5); }
 .celula.sem-prova { background: var(--c6-fundo); color: var(--c6); border: 1px dashed var(--c5); }
 .celula.sem-comparacao { background: var(--c1-fundo); color: var(--c1); border: 1px dashed var(--c1); }

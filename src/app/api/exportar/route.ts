@@ -6,6 +6,7 @@ import { TODAS, chavesDe, ehFiltro } from "../../../lib/filtros.ts";
 import { dataLocal, diaMes, horaLocal } from "../../../lib/tempo.ts";
 import { DESIGNACOES, type CodigoEstado, type Registo } from "../../../lib/tipos.ts";
 import { ROTULO, variante } from "../../../lib/apresentacao.ts";
+import { emAtraso } from "../../../lib/registos.ts";
 import { PAGAS } from "../../../../config/pagas.ts";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +64,7 @@ export function GET(pedido: Request) {
       codigo: r.codigo_estado,
       fechado: r.fechado === 1,
       limitePassou: r.fechado === 0 && new Date(r.hora_limite) <= agora,
+      emAtraso: emAtraso(r, agora),
       semEmail: !n || !estaConfigurada(n),
       paga: PAGAS.has(r.newsletter_id),
       ressalva: r.ressalva ?? null,

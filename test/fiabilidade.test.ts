@@ -170,17 +170,21 @@ test("regra mais específica ganha; empate fica por atribuir", () => {
 // ── Dia da edição ──────────────────────────────────────────────────────────
 
 test("edição da noite que chega depois da meia-noite conta para o dia certo", () => {
+  // Janela: 6 h antes a 18 h depois da hora prevista.
   const noite = nl("sabado-edicao-noite"); // 21:00
   assert.equal(dataEdicao(noite, lisboa("2026-10-02", "00:30")), "2026-10-01");
   assert.equal(dataEdicao(noite, lisboa("2026-10-01", "21:05")), "2026-10-01");
-  assert.equal(dataEdicao(noite, lisboa("2026-10-02", "10:00")), "2026-10-02");
+  assert.equal(dataEdicao(noite, lisboa("2026-10-02", "10:00")), "2026-10-01", "13 h depois: fora de prazo do dia 1");
+  assert.equal(dataEdicao(noite, lisboa("2026-10-02", "15:00")), "2026-10-02", "6 h antes da do dia 2");
 });
 
 test("edição da manhã adiantada ou atrasada fica no seu dia", () => {
   const exclusivos = nl("cm-exclusivos"); // 06:00
   assert.equal(dataEdicao(exclusivos, lisboa("2026-10-01", "05:10")), "2026-10-01");
+  assert.equal(dataEdicao(exclusivos, lisboa("2026-10-01", "00:00")), "2026-10-01");
   assert.equal(dataEdicao(exclusivos, lisboa("2026-10-01", "13:00")), "2026-10-01");
-  assert.equal(dataEdicao(exclusivos, lisboa("2026-09-30", "19:00")), "2026-10-01");
+  assert.equal(dataEdicao(exclusivos, lisboa("2026-09-30", "19:00")), "2026-09-30");
+  assert.equal(dataEdicao(exclusivos, lisboa("2026-09-30", "23:59")), "2026-09-30");
 });
 
 test("mudança da hora (25/10/2026) não troca o dia", () => {
@@ -504,8 +508,13 @@ test("positivo: 'Não Saiu' só fecha com uma leitura feita depois do limite, e 
   registos.fecharVencidos({ ok: lisboa(dia, "09:00"), desde: lisboa(dia, "08:00") });
   assert.equal(registo("cm-exclusivos", dia).fechado, 0);
 
-  // Leitura boa, depois do limite e da margem, a cobrir o dia: fecha como 5.
+  // Leitura boa depois do limite, mas antes das 6 h do prazo (12:00): ainda
+  // pode chegar como "Atrasada" — não fecha.
   registos.fecharVencidos({ ok: lisboa(dia, "12:00"), desde: lisboa("2026-09-20", "00:00") });
+  assert.equal(registo("cm-exclusivos", dia).fechado, 0);
+
+  // Leitura boa, depois do prazo e da margem, a cobrir o dia: fecha como 5.
+  registos.fecharVencidos({ ok: lisboa(dia, "12:15"), desde: lisboa("2026-09-20", "00:00") });
   assert.deepEqual(estado("cm-exclusivos", dia), NAO_SAIU);
   assert.match(registo("cm-exclusivos", dia).detalhe, /→ Não Saiu/);
 });

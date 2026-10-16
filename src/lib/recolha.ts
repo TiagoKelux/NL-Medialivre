@@ -2,7 +2,7 @@ import { db } from "./db.ts";
 import type { MensagemGraph } from "./graph/mail.ts";
 import { corresponder } from "./correspondencia.ts";
 import { processarCorpo } from "./conteudo.ts";
-import { extrairMarcas, garantirMarcas, marcasDoEmail, type Marcas } from "./marcas.ts";
+import { esquecerCampanhas, extrairMarcas, garantirMarcas, marcasDoEmail, type Marcas } from "./marcas.ts";
 import { podeSerDe } from "./prova.ts";
 import { PAGAS } from "../../config/pagas.ts";
 import { reavaliar, registoDe } from "./registos.ts";
@@ -53,6 +53,7 @@ function identificador(m: MensagemGraph): string | null {
 export function reclassificar(): Set<string> {
   const bd = db();
   garantirMarcas();
+  esquecerCampanhas();
   const emails = bd
     // O índice de cobertura (db.ts) evita atravessar as páginas de overflow
     // dos corpos; `INDEXED BY` impede o planeador de preferir a tabela.
@@ -77,6 +78,7 @@ export function reclassificar(): Set<string> {
     const novo = corresponder(e.remetente, e.assunto, m)?.id ?? null;
     if (novo === e.newsletter_id) continue;
     atualizar.run(novo, e.id);
+    esquecerCampanhas();
     const recebido = new Date(e.recebido_em);
     const antiga = e.newsletter_id ? newsletterPorId(e.newsletter_id) : undefined;
     if (antiga) afetados.add(chave(antiga, recebido));

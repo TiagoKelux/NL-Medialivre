@@ -2,8 +2,8 @@ import { db } from "./db.ts";
 import { estaConfigurada } from "../../config/newsletters.ts";
 import { PAGAS } from "../../config/pagas.ts";
 import { ehDiaEsperado } from "./classificacao.ts";
-import { eNaoEdicaoDoEditor, extrairEndereco, extrairNome, naoEEdicao } from "./correspondencia.ts";
-import { marcasDoEmail, type Marcas } from "./marcas.ts";
+import { eNaoEdicaoDoEditor, extrairEndereco, extrairNome, naoEEdicao, normalizarAssunto } from "./correspondencia.ts";
+import { lerCampanhas, marcasDoEmail, type Campanhas, type Marcas } from "./marcas.ts";
 import { dataEdicao, intervaloDeBusca } from "./edicao.ts";
 import { dataLocal, diaMes, horaLocal, paraIso, somarDias } from "./tempo.ts";
 import type { Newsletter } from "./tipos.ts";
@@ -114,12 +114,25 @@ function temPalavras(texto: string, frase: string): boolean {
  * que o usam, nessa janela, até a regra ser afinada. As boas-vindas e
  * promoções conhecidas (`naoEEdicao`) nunca contam, nem o marketing do editor
  * reconhecido pela estrutura (`eNaoEdicaoDoEditor`), quando há `marcas`.
+ *
+ * Critério da campanha (`campanhaDecide`), antes de tudo o resto: cada
+ * newsletter manda as suas edições de uma campanha própria do Echobox, e o
+ * token de cada email diz qual é. Se a campanha decide, a heurística do
+ * nome e do assunto já não é chamada.
  */
-export function podeSerDe(n: Newsletter, remetente: string, assunto: string, marcas?: Marcas): boolean {
+export function podeSerDe(
+  n: Newsletter,
+  remetente: string,
+  assunto: string,
+  marcas?: Marcas,
+  campanhas: Campanhas = lerCampanhas(),
+): boolean {
   if (naoEEdicao(assunto) || RECONQUISTA.test(assunto)) return false;
   // Marketing do editor reconhecido pela estrutura também não é edição (e,
   // se for reconquista, já trava o 5 pela regra 5, com o motivo certo).
   if (marcas && eNaoEdicaoDoEditor(marcas, remetente)) return false;
+  const pelaCampanha = marcas ? campanhaDecide(n, marcas, campanhas) : null;
+  if (pelaCampanha !== null) return pelaCampanha;
   const endereco = extrairEndereco(remetente);
   const exato = n.remetentes.some((r) => {
     const alvo = r.trim().toLowerCase();
@@ -129,6 +142,53 @@ export function podeSerDe(n: Newsletter, remetente: string, assunto: string, mar
   const texto = palavras(`${extrairNome(remetente)} ${assunto}`);
   if (n.padraoRemetente.trim() && temPalavras(texto, n.padraoRemetente)) return true;
   return temPalavras(texto, n.marca) && temPalavras(texto, n.nome);
+}
+
+/**
+ * O que a campanha do Echobox diz sobre um email ser (ou não) uma edição
+ * desta newsletter: true, false, ou null quando não decide.
+ *
+ * Medido em 29/09–15/10: 119 edições de 25 newsletters, todas com token;
+ * cada newsletter com uma campanha só, nenhuma campanha partilhada. O
+ * marketing (boas-vindas, reconquista, "Indica", Record Premium) vem sem
+ * token ou de campanhas próprias. Daí:
+ *   - campanha de uma edição desta newsletter → é dela (true);
+ *   - campanha de outra newsletter → não é (false);
+ *   - esta newsletter tem campanha conhecida e o email vem de outra, ou sem
+ *     token → não é edição dela (false): as edições dela trazem sempre a sua;
+ *   - esta newsletter ainda não tem campanha conhecida → não decide (null).
+ * Uma newsletter que mude de campanha continua a ser atribuída pela
+ * `marcaCorpo`, e a campanha nova é aprendida dessa edição.
+ */
+export function campanhaDecide(n: Newsletter, marcas: Marcas, campanhas: Campanhas): boolean | null {
+  const minhas = campanhas.daNewsletter.get(n.id);
+  const c = marcas.eb?.campanha;
+  if (c) {
+    const dona = campanhas.dona.get(c);
+    if (dona) return dona === n.id;
+  }
+  return minhas && minhas.size > 0 ? false : null;
+}
+
+/**
+ * Os emails que a equipa marcou no painel como "não é newsletter" (por
+ * mensagem ou por assunto). Já não podem travar um "Não Saiu": é uma
+ * decisão humana, registada em `alteracoes`, e desfaz-se no painel.
+ */
+function excluidos(ids: number[]): Set<number> {
+  if (ids.length === 0) return new Set();
+  const bd = db();
+  const regras = bd.prepare(`SELECT tipo, valor FROM exclusoes`).all() as { tipo: string; valor: string }[];
+  if (regras.length === 0) return new Set();
+  const mensagens = new Set(regras.filter((r) => r.tipo === "mensagem").map((r) => r.valor));
+  const assuntos = new Set(regras.filter((r) => r.tipo === "assunto").map((r) => r.valor));
+  const ler = bd.prepare(`SELECT internet_message_id AS m, assunto AS a FROM emails WHERE id = ?`);
+  const fora = new Set<number>();
+  for (const id of ids) {
+    const e = ler.get(id) as { m: string; a: string } | undefined;
+    if (e && (mensagens.has(e.m) || assuntos.has(normalizarAssunto(e.a)))) fora.add(id);
+  }
+  return fora;
 }
 
 /** Um email guardado, sem o corpo: as marcas chegam para decidir. */
@@ -202,7 +262,8 @@ export function motivosSemProva(n: Newsletter, data: string, horaLimite: Date): 
 
   // 3. Por atribuir que pode ser dela.
   const { inicio, fim } = intervaloDeBusca(data);
-  const soltos = (
+  const campanhas = lerCampanhas();
+  const candidatos = (
     bd
       .prepare(
         `SELECT id, remetente, assunto, recebido_em, marcas FROM emails INDEXED BY idx_emails_identificacao
@@ -213,8 +274,10 @@ export function motivosSemProva(n: Newsletter, data: string, horaLimite: Date): 
   ).filter(
     (e) =>
       dataEdicao(n, new Date(e.recebido_em)) === data &&
-      podeSerDe(n, e.remetente, e.assunto, marcasDoEmail(e.id, e.marcas)),
+      podeSerDe(n, e.remetente, e.assunto, marcasDoEmail(e.id, e.marcas), campanhas),
   );
+  const fora = excluidos(candidatos.map((e) => e.id));
+  const soltos = candidatos.filter((e) => !fora.has(e.id));
   if (soltos.length > 0) {
     const e = soltos[0];
     motivos.push(

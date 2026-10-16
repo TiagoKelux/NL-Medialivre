@@ -336,34 +336,14 @@ test("mudança da hora: limite e dia da edição certos em 25/10/2026 e 28/03/20
 });
 
 // ── Decisões de produto em aberto ──────────────────────────────────────────
-
-test("feriados: uma 'dias úteis' não é esperada num feriado nacional", {
-  todo: "decisão: não há calendário de feriados; 08/12 (terça) é esperado e, com canário, fecha 'Não Saiu'",
-}, () => {
-  assert.equal(ehDiaEsperado(nl("negocios-fecho"), "2026-12-08"), false);
-});
+// (As decididas a 16/10 — feriados, calendário, prazo de 6 h, duplicados e
+// "não é newsletter" — estão em test/decisoes.test.ts.)
 
 test("'dia do mês' 31 (ou 29/30) em meses curtos", {
   todo: "decisão: diasMes [31] nunca é esperado em fevereiro, abril…; falta dizer se é 'último dia do mês'",
 }, () => {
   const fim = { ...nl("sabado-o-melhor-do-mes"), diasMes: [31] };
   assert.equal(ehDiaEsperado(fim, "2027-02-28"), true);
-});
-
-test("edição mais de 12 h atrasada não pode dar 'Não Saiu' no dia dela", {
-  todo: "decisão: a janela é ±12 h; uma diária das 06:00 que chegue às 19:00 conta para o dia seguinte " +
-    "(D fecha 'Não Saiu' com canário, D+1 dá 'Saiu' antes da hora e depois 'Duplicada')",
-}, () => {
-  const dia = "2026-09-23";
-  registos.gerarDia(dia);
-  registos.gerarDia("2026-09-24");
-  const CM = (nome: string) => `Correio da Manhã ${nome} <info@news.correiodamanha.pt>`;
-  gravar(CM("Exclusivos"), "véspera", lisboa("2026-09-22", "06:00"), "cm-exclusivos");
-  gravar(CM("Bom dia"), "canário", lisboa(dia, "10:00"), "cm-bom-dia");
-  gravar(CM("Exclusivos"), "atrasada 13 h", lisboa(dia, "19:00"), "cm-exclusivos");
-  assert.equal(dataEdicao(nl("cm-exclusivos"), lisboa(dia, "19:00")), "2026-09-24");
-  leituraBoa();
-  assert.notDeepEqual(estado("cm-exclusivos", dia), NAO_SAIU);
 });
 
 test("promoção do editor (FLASH! Indica) não prova que a caixa recebe as edições", {
@@ -390,56 +370,4 @@ test("dois emails diferentes com o mesmo Message-ID contam os dois", {
   ]);
   const n = (db().prepare(`SELECT COUNT(*) AS n FROM emails WHERE internet_message_id LIKE 'repetido@teste%'`).get() as { n: number }).n;
   assert.equal(n, 2);
-});
-
-test("mudar o calendário no Excel não reescreve dias passados que não eram esperados", {
-  todo: "decisão: a configuração não tem histórico; ao acrescentar um dia da semana, os registos 6 dos " +
-    "últimos 45 dias passam a 5 e podem fechar 'Não Saiu' num dia em que a newsletter não estava agendada",
-}, () => {
-  const dia = "2026-09-30"; // quarta-feira: a Lex é à quinta
-  registos.gerarDia(dia);
-  assert.equal(registo("negocios-lex", dia).codigo_estado, 6);
-  const lex = nl("negocios-lex");
-  const antes = lex.diasSemana;
-  lex.diasSemana = [3, 4];
-  try {
-    registos.reavaliar("negocios-lex", dia);
-    assert.equal(registo("negocios-lex", dia).codigo_estado, 6);
-  } finally {
-    lex.diasSemana = antes;
-    registos.reavaliar("negocios-lex", dia);
-  }
-});
-
-test("dois envios com o mesmo conteúdo, minutos depois, não são 'Duplicada' por defeito", {
-  todo: "decisão: dois emails distintos (Message-ID diferente) com o MESMO hash, minutos depois, são " +
-    "provavelmente a caixa inscrita duas vezes (o Gmail ignora pontos no endereço), não um envio duplicado " +
-    "para os leitores; hoje dão 3. O To: não é guardado, por isso não se distingue",
-}, async () => {
-  const { classificar } = await import("../src/lib/classificacao.ts");
-  const r = classificar({
-    newsletter: nl("cm-exclusivos"),
-    dataPrevista: "2026-10-01",
-    horaLimite: lisboa("2026-10-01", "07:00"),
-    ocorrencias: [
-      { recebidoEm: lisboa("2026-10-01", "06:02"), hash: "h" },
-      { recebidoEm: lisboa("2026-10-01", "06:03"), hash: "h" },
-    ],
-    edicaoAnterior: null,
-    fechado: true,
-  });
-  assert.notEqual(r.codigo, 3);
-});
-
-test("'não é newsletter' no painel deixa de travar o 'Não Saiu'", {
-  todo: "decisão: as exclusões só tiram o email da lista; um email que a equipa já disse não ser " +
-    "newsletter continua a dar 'sem prova' a todas as newsletters do endereço, para sempre",
-}, () => {
-  const dia = "2026-09-17";
-  registos.gerarDia(dia);
-  gravar(RECORD("Sporting"), "canário", lisboa(dia, "11:00"), "record-sporting");
-  const solto = gravar(RECORD("Novidades"), "Hoje no Record", lisboa(dia, "09:10"), null);
-  assert.ok(regras.excluir(solto, "mensagem").ok);
-  leituraBoa();
-  assert.deepEqual(estado("record-geral", dia), NAO_SAIU);
 });

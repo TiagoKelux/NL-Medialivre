@@ -1,7 +1,7 @@
 import { db } from "./db.ts";
 import { NEWSLETTERS, estaConfigurada, newsletterPorId } from "../../config/newsletters.ts";
 import { PAGAS } from "../../config/pagas.ts";
-import { corresponder, extrairEndereco, extrairNome, naoEEdicao } from "./correspondencia.ts";
+import { corresponder, extrairEndereco, extrairNome, naoEEdicao, normalizarAssunto } from "./correspondencia.ts";
 import { reavaliarAfetados, reclassificar } from "./recolha.ts";
 import {
   configuradaNoFicheiro,
@@ -50,10 +50,7 @@ function quandoCurto(iso: string): string {
   return `${dia} ${hora}`;
 }
 
-/** Assunto como se compara nas exclusões: sem espaços a mais, sem maiúsculas. */
-export function normalizarAssunto(assunto: string): string {
-  return assunto.normalize("NFC").replace(/\s+/g, " ").trim().toLowerCase();
-}
+export { normalizarAssunto };
 
 function registar(acao: string, detalhe: string, quem: string | null): void {
   db()

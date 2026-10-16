@@ -38,6 +38,11 @@ export function extrairEndereco(valor: string): string {
   return (entreSinais ? entreSinais[1] : valor).trim().toLowerCase();
 }
 
+/** Assunto como se compara nas exclusões: sem espaços a mais, sem maiúsculas. */
+export function normalizarAssunto(assunto: string): string {
+  return assunto.normalize("NFC").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
 /** "FLASH! Bom dia <info@news.flash.pt>" → "FLASH! Bom dia". */
 export function extrairNome(valor: string): string {
   const antes = valor.split("<")[0].trim();
