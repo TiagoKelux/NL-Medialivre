@@ -421,3 +421,27 @@ test("as edições seguidas em falta contam pelo calendário de cada dia", async
     lex.diasSemana = antes;
   }
 });
+
+// ── Abrir os emails, para o editor não cortar a caixa ──────────────────────
+
+test("abertura: só o pixel do SES (I0), nunca links nem outras imagens", async () => {
+  const { pixelDeAbertura, marcarAbertos } = await import("../src/lib/abertura.ts");
+  const pixel = "https://sgdbs6pn.r.eu-west-1.awstrack.me/I0/010201a0ecd8543f-db5bc714/abc=473";
+  const html =
+    `<a href="https://sgdbs6pn.r.eu-west-1.awstrack.me/L0/https:%2F%2Fwww.flash.pt/1/x">link</a>` +
+    `<img src="https://cdn.flash.pt/foto.jpg"><img alt="" src="${pixel}" width="1" height="1">`;
+  assert.equal(pixelDeAbertura(html), pixel);
+  assert.equal(pixelDeAbertura("<img src='https://x.pt/a.png'>"), null);
+  const pedidos: string[] = [];
+  const n = await marcarAbertos([html, "<p>sem pixel</p>"], async (u) => (pedidos.push(u), { ok: true }));
+  assert.equal(n, 1);
+  assert.deepEqual(pedidos, [pixel]);
+  // Uma falha de rede não rebenta.
+  assert.equal(await marcarAbertos([html], async () => { throw new Error("rede"); }), 0);
+  process.env.MARCAR_ABERTURA = "0";
+  try {
+    assert.equal(await marcarAbertos([html], async () => ({ ok: true })), 0);
+  } finally {
+    delete process.env.MARCAR_ABERTURA;
+  }
+});

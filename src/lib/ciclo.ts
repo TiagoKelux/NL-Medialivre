@@ -99,7 +99,7 @@ async function ciclo(): Promise<string[]> {
   await sinalDeVida(null);
   passos.push(
     `${r.vistas} vistas, ${r.novas} novas, ${r.repetidas} repetidas, ` +
-      `${r.atribuidas} atribuídas, ${r.registosAtualizados} registo(s) atualizado(s)`,
+      `${r.atribuidas} atribuídas, ${r.registosAtualizados} registo(s) atualizado(s), ${r.abertos} aberto(s)`,
   );
 
   // `agora` é o momento em que a leitura começou: o que chegou depois pode não

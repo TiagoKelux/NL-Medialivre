@@ -4,6 +4,7 @@ import { corresponder } from "./correspondencia.ts";
 import { processarCorpo } from "./conteudo.ts";
 import { esquecerCampanhas, extrairMarcas, garantirMarcas, marcasDoEmail, type Marcas } from "./marcas.ts";
 import { podeSerDe } from "./prova.ts";
+import { marcarAbertos } from "./abertura.ts";
 import { PAGAS } from "../../config/pagas.ts";
 import { reavaliar, registoDe } from "./registos.ts";
 import { dataEdicao } from "./edicao.ts";
@@ -31,6 +32,8 @@ export interface ResumoRecolha {
   repetidas: number;
   atribuidas: number;
   registosAtualizados: number;
+  /** Emails novos marcados como abertos no editor (`abertura.ts`). */
+  abertos: number;
 }
 
 function identificador(m: MensagemGraph): string | null {
@@ -149,7 +152,9 @@ export async function recolher(horas = 24, ler?: LeitorCaixa): Promise<ResumoRec
     repetidas: jaGravados,
     atribuidas: 0,
     registosAtualizados: 0,
+    abertos: 0,
   };
+  const novos: string[] = [];
 
   // Chave `newsletterId|data` dos registos que é preciso reavaliar.
   const afetados = new Set<string>();
@@ -187,6 +192,7 @@ export async function recolher(horas = 24, ler?: LeitorCaixa): Promise<ResumoRec
       }
 
       resumo.novas++;
+      novos.push(html);
       if (n) {
         resumo.atribuidas++;
         afetados.add(chave(n, new Date(m.receivedDateTime)));
@@ -200,6 +206,8 @@ export async function recolher(horas = 24, ler?: LeitorCaixa): Promise<ResumoRec
   for (const c of reclassificar()) afetados.add(c);
 
   resumo.registosAtualizados = reavaliarAfetados(afetados);
+  // Depois de tudo gravado: abrir os novos, para o editor não cortar a caixa.
+  resumo.abertos = await marcarAbertos(novos);
   return resumo;
 }
 
