@@ -76,8 +76,11 @@ não tiver remetente, com o detalhe a dizer porquê. A prova exige
    remetente) no nome ou no assunto. O mesmo domínio com outro endereço não
    conta, para o marketing de assinaturas não travar as gratuitas da marca;
 5. um **canário**: outro email do mesmo remetente (endereço ou domínio)
-   chegou nas 24 h depois do limite;
-6. nenhum email de reconquista do mesmo domínio nos 30 dias anteriores. É
+   chegou nas 24 h depois do limite — que não seja marketing do editor
+   (boas-vindas, promoções conhecidas, reconquista): a campanha de
+   reconquista chega precisamente quando o editor corta as edições;
+6. nenhum email de reconquista do mesmo domínio nos 30 dias anteriores, nem
+   nas 24 h do canário. É
    reconhecido pela **estrutura**, não pela redação do assunto
    (`eNaoEdicaoDoEditor`, em `correspondencia.ts`): vem de um endereço de
    edições, não traz marca de edição (nem o bloco `/4196/…_LEADERBOARD`, nem a
@@ -88,6 +91,14 @@ não tiver remetente, com o detalhe a dizer porquê. A prova exige
    connosco", "Notámos que há algum tempo…") continuam a contar como rede
    extra;
 7. menos de 3 edições seguidas em falta (2 nas semanais e mensais).
+
+Enquanto não houver uma leitura que cumpra o ponto 1, o registo mostra-se
+**Por confirmar**, nunca "Não recebida": o arranque reavalia os registos antes
+de ler a caixa, e com a leitura a falhar o email pode estar lá por ler. Um
+email por atribuir que chegue depois de um "Não Saiu" fechado, e possa ser
+dele (ponto 4), reabre-o na própria recolha. Um registo que deixe de ser 6
+(newsletter reativada, calendário mudado) não herda o `fechado` do 6, e nada
+fica fechado antes do limite.
 
 As pagas (`config/pagas.ts`) estão isentas de 2 a 7: a caixa não está inscrita
 nelas de propósito e o 5 delas é o grupo de controlo do motor — mostram-se
@@ -318,7 +329,7 @@ painel ou ambos) e quando chegou a última edição.
 config/newsletters.ts     as 62 newsletters — GERADO, não editar à mão
 src/lib/
   tipos.ts                códigos, designações, cores, tipos das tabelas
-  tempo.ts                fuso Europe/Lisbon, dias locais, horas de corte
+  tempo.ts                fuso Europe/Lisbon (fixo, nunca o TZ do servidor), dias locais, horas de corte
   esquema.ts              o SQL das três tabelas
   db.ts                   ligação SQLite
   conteudo.ts             normalização do corpo e hash (§7.4)
@@ -359,7 +370,9 @@ módulos nativos (`better-sqlite3`) ou em `require("crypto")` à moda antiga
 
 Por isso o `instrumentation.ts` não tem imports nenhuns: faz um `POST` a
 `/api/arranque`, e é essa rota — já do lado do servidor, onde os externos são
-respeitados — que regista os dois `node-cron`. Continua a ser um processo único.
+respeitados — que regista os `node-cron`. Continua a ser um processo único.
+O ciclo de 5 em 5 minutos também gera os dias da última semana que faltem
+(idempotente): se o servidor estava suspenso às 00h05, o dia aparece na mesma.
 
 ## A página
 

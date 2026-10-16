@@ -226,20 +226,30 @@ export function motivosSemProva(n: Newsletter, data: string, horaLimite: Date): 
   if (n.remetentes.length > 0) {
     // 4. Canário.
     const ate = new Date(horaLimite.getTime() + HORAS_CANARIO * 3_600_000);
+    // O marketing do editor não conta: a campanha de reconquista chega
+    // precisamente quando o editor corta as edições a esta caixa.
     const depois = bd
       .prepare(
-        `SELECT remetente FROM emails INDEXED BY idx_emails_identificacao
+        `SELECT id, remetente, assunto, recebido_em, marcas FROM emails INDEXED BY idx_emails_identificacao
           WHERE (newsletter_id IS NULL OR newsletter_id <> ?) AND recebido_em > ? AND recebido_em <= ?`,
       )
-      .all(n.id, paraIso(horaLimite), paraIso(ate)) as { remetente: string }[];
-    if (!depois.some((e) => mesmoRemetente(n, e.remetente))) {
+      .all(n.id, paraIso(horaLimite), paraIso(ate)) as EmailLeve[];
+    const canario = depois.some(
+      (e) =>
+        mesmoRemetente(n, e.remetente) &&
+        !naoEEdicao(e.assunto) &&
+        !eReconquista(e.remetente, e.assunto, marcasDoEmail(e.id, e.marcas)),
+    );
+    if (!canario) {
       motivos.push(
         "nenhum outro email do mesmo remetente chegou nas 24 h depois do limite — sem prova de que a " +
           "caixa estava a receber deste editor",
       );
     }
 
-    // 5. Reconquista.
+    // 5. Reconquista: nos 30 dias anteriores e também na janela do canário
+    // (até 24 h depois do limite) — a campanha que chega nessa tarde diz o
+    // mesmo que a da semana anterior.
     const desde = new Date(horaLimite.getTime() - DIAS_RECONQUISTA * 86_400_000);
     const avisos = (
       bd
@@ -247,7 +257,7 @@ export function motivosSemProva(n: Newsletter, data: string, horaLimite: Date): 
           `SELECT id, remetente, assunto, recebido_em, marcas FROM emails INDEXED BY idx_emails_identificacao
             WHERE recebido_em >= ? AND recebido_em <= ? ORDER BY recebido_em DESC`,
         )
-        .all(paraIso(desde), paraIso(horaLimite)) as EmailLeve[]
+        .all(paraIso(desde), paraIso(ate)) as EmailLeve[]
     ).filter(
       (e) =>
         mesmoRemetente(n, e.remetente) &&

@@ -6,7 +6,12 @@
  * os dois. Converter na mão com `new Date(...)` parte na mudança da hora.
  */
 
-export const FUSO = process.env.TZ || "Europe/Lisbon";
+/**
+ * O fuso do negócio, fixo. Não vem do `TZ` do processo: num servidor esse
+ * valor é muitas vezes "UTC" (as janelas andavam uma hora) ou ":/etc/localtime"
+ * (o Intl recusa-o e o arranque rebentava).
+ */
+export const FUSO = "Europe/Lisbon";
 
 const FORMATADOR = new Intl.DateTimeFormat("en-CA", {
   timeZone: FUSO,

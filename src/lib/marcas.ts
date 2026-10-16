@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { db } from "./db.ts";
 import { NEWSLETTERS } from "../../config/newsletters.ts";
 import type { Newsletter } from "./tipos.ts";
+import { removerBlocos, removerEtiquetas } from "./conteudo.ts";
 
 /**
  * As marcas de um email: o que a identificação precisa de saber do corpo,
@@ -59,19 +60,22 @@ function marcasConfiguradas(newsletters: Newsletter[]): string[] {
 }
 
 /**
- * Por lista: a configuração não se altera em memória (mudá-la é editar o
- * ficheiro e recarregar o módulo, que dá uma lista nova). Chamada uma vez por
- * email na reclassificação, por isso não pode custar um hash de cada vez.
+ * Pelo CONTEÚDO da lista de marcas, não pelo array: as regras do painel
+ * (`aplicarNaConfig`) mudam os objetos da configuração no mesmo array. Com a
+ * cache pelo array, a impressão digital não mudava depois de uma regra com
+ * marca nova, e as marcas guardadas antes dela passavam por atuais — sem a
+ * marca nova, os emails antigos nunca eram reconhecidos. Chamada uma vez por
+ * email na reclassificação: o custo é juntar ~60 textos, não um hash.
  */
-const versoes = new WeakMap<Newsletter[], string>();
+const versoes = new Map<string, string>();
 
 /** Impressão digital da lista de marcas — muda quando a configuração muda. */
 export function versaoMarcas(newsletters: Newsletter[] = NEWSLETTERS): string {
-  let v = versoes.get(newsletters);
+  const chave = `${VERSAO_EXTRATOR}\n${marcasConfiguradas(newsletters).join("\n")}`;
+  let v = versoes.get(chave);
   if (!v) {
-    const chave = `${VERSAO_EXTRATOR}\n${marcasConfiguradas(newsletters).join("\n")}`;
     v = createHash("sha1").update(chave).digest("hex").slice(0, 12);
-    versoes.set(newsletters, v);
+    versoes.set(chave, v);
   }
   return v;
 }
@@ -80,9 +84,9 @@ const PUBLICIDADE_EDICAO = /\/4196\/[a-z0-9_]+_masthead\/newsletter_[a-z0-9_]+_l
 
 /** Texto visível: sem cabeça, estilos e scripts, sem etiquetas, espaços colapsados. */
 export function comprimentoTexto(html: string): number {
-  return html
-    .replace(/<(style|script|head)\b[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
+  // Igual a tirar /<(style|script|head)\b[\s\S]*?<\/\1>/gi e /<[^>]+>/g, em
+  // tempo linear com HTML mal fechado (conteudo.ts).
+  return removerEtiquetas(removerBlocos(html, ["style", "script", "head"], " "), " ")
     .replace(/&(#\d+|#x[0-9a-f]+|[a-z]+\d*);/gi, "x")
     .replace(/\s+/g, " ")
     .trim().length;

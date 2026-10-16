@@ -45,10 +45,22 @@ function separar(bruto: string): { cabecalhos: Map<string, string>; corpo: strin
   return { cabecalhos, corpo };
 }
 
+/**
+ * Cabeçalho com bytes de 8 bits crus (UTF-8 sem `=?UTF-8?…?=`, RFC 6532). A
+ * fonte IMAP lê-se em latin1, e "Máxima" em UTF-8 cru ficava "MÃ¡xima" — o
+ * nome do remetente deixava de bater. Se os bytes forem UTF-8 válido, lê-se
+ * em UTF-8; senão fica como estava (latin1 verdadeiro).
+ */
+function oitoBits(valor: string): string {
+  if (!/[\x80-\xff]/.test(valor) || /[^\x00-\xff]/.test(valor)) return valor;
+  const utf8 = Buffer.from(valor, "latin1").toString("utf8");
+  return utf8.includes("�") ? valor : utf8;
+}
+
 /** =?UTF-8?Q?texto?= e =?UTF-8?B?dGV4dG8=?=, possivelmente em vários pedaços. */
 export function descodificarCabecalho(valor: string): string {
   // Pedaços adjacentes separados só por espaço juntam-se sem espaço.
-  const semSeparadores = valor.replace(/\?=[ \t]+=\?/g, "?==?");
+  const semSeparadores = oitoBits(valor).replace(/\?=[ \t]+=\?/g, "?==?");
 
   return semSeparadores.replace(
     /=\?([^?]+)\?([QqBb])\?([^?]*)\?=/g,

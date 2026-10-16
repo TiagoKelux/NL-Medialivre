@@ -6,6 +6,7 @@ import { datasNoEmail, fraseData } from "./datas.ts";
 import { dataEdicao, intervaloDeBusca } from "./edicao.ts";
 import { naoEEdicao } from "./correspondencia.ts";
 import { motivosSemProva } from "./prova.ts";
+import { estadoLeitura } from "./leitura.ts";
 import { extrairArtigos, processarCorpo } from "./conteudo.ts";
 import { dataLocal, horaLocal, paraInstante, paraIso, somarDias, somarMinutos, ultimosDias } from "./tempo.ts";
 import type { CodigoEstado, Newsletter, Periodicidade, Registo, Ressalva } from "./tipos.ts";
@@ -137,7 +138,11 @@ function edicaoAnteriorDe(n: Newsletter, data: string): EdicaoAnterior | null {
  * §7.2 — Reavaliar o registo de uma newsletter num dia, a partir dos emails
  * que estão gravados. Idempotente: correr duas vezes dá o mesmo resultado.
  */
-export function reavaliar(newsletterId: string, data: string): Registo | null {
+export function reavaliar(
+  newsletterId: string,
+  data: string,
+  opcoes: { lido?: boolean } = {},
+): Registo | null {
   const n = newsletterPorId(newsletterId);
   if (!n) return null;
 
@@ -156,6 +161,13 @@ export function reavaliar(newsletterId: string, data: string): Registo | null {
   // A hora limite vem sempre da configuração atual: se a hora prevista mudar,
   // um limite gravado à data da geração ficaria desatualizado.
   const horaLimite = horaLimiteDe(n, data);
+  const agora = new Date();
+  // O "fechado" de um 6 não diz nada sobre a caixa: o 6 nasce fechado. Se o
+  // registo deixar de ser 6 (newsletter reativada, calendário mudado), volta
+  // a abrir e só fecha com leitura e prova (`fecharVencidos`). E nada fica
+  // fechado antes do limite (hora prevista mudada para mais tarde).
+  let fechado: 0 | 1 = existente.codigo_estado === 6 ? 0 : existente.fechado;
+  if (horaLimite > agora) fechado = 0;
   const emails = emailsDaEdicao(n, data);
   const r = classificar({
     newsletter: n,
@@ -163,8 +175,9 @@ export function reavaliar(newsletterId: string, data: string): Registo | null {
     horaLimite,
     ocorrencias: emails.map((e) => ({ recebidoEm: new Date(e.recebido_em), ...conteudoDe(e) })),
     edicaoAnterior: edicaoAnteriorDe(n, data),
-    fechado: existente.fechado === 1,
+    fechado: fechado === 1,
   });
+  if (r.codigo === 6) fechado = 1;
 
   // Sinal auxiliar, não mexe no código: a data que o próprio email escreve.
   const primeiro = r.nrOcorrencias > 0 ? emails[0] : undefined;
@@ -182,11 +195,19 @@ export function reavaliar(newsletterId: string, data: string): Registo | null {
   // email", se não houver remetente) e o detalhe diz porquê. O código continua
   // 5 na base de dados (o CHECK só aceita 1 a 6); é `fechado = 0` que impede
   // que seja lido como "Não Saiu". Nunca se escreve "→ Não Saiu" sem prova.
-  let fechado = existente.fechado;
-  if (r.codigo === 5 && horaLimite <= new Date()) {
+  if (r.codigo === 5 && horaLimite <= agora) {
     const limite = horaLocal(horaLimite);
-    const motivos = motivosSemProva(n, data, horaLimite);
-    if (motivos.length > 0) {
+    // "Não recebida" só depois de a caixa ter sido lida depois do limite:
+    // antes disso (arranque depois de uma paragem, leitura a falhar) o email
+    // pode estar na caixa por ler — é "Por confirmar".
+    const lido = opcoes.lido ?? (fechado === 1 || leituraCobre(data, horaLimite));
+    const motivos = lido ? motivosSemProva(n, data, horaLimite) : [];
+    if (!lido) {
+      fechado = 0;
+      detalhe =
+        `Nada recebido até ao limite das ${limite}. Por confirmar: falta uma leitura ` +
+        `bem-sucedida da caixa, feita depois do limite, que cubra este dia sem intervalos.`;
+    } else if (motivos.length > 0) {
       fechado = 0;
       ressalva = "sem-prova";
       detalhe = `Nada recebido até ao limite das ${limite}, mas não se pode afirmar "Não Saiu": ${motivos.join("; ")}.`;
@@ -227,6 +248,21 @@ export function reavaliar(newsletterId: string, data: string): Registo | null {
 export const MARGEM_FECHO_MIN = 10;
 
 /**
+ * As leituras gravadas (`estado`) cobrem esta edição: houve uma leitura boa
+ * depois do limite (mais a margem) e a cobertura contínua começa antes da
+ * janela. É a mesma prova que o `fecharVencidos` exige, para as reavaliações
+ * feitas fora dele (arranque, email novo).
+ */
+function leituraCobre(data: string, horaLimite: Date): boolean {
+  const { ok, coberta } = estadoLeitura();
+  if (!ok || !coberta) return false;
+  return (
+    new Date(ok).getTime() >= horaLimite.getTime() + MARGEM_FECHO_MIN * 60_000 &&
+    intervaloDeBusca(data).inicio >= new Date(coberta)
+  );
+}
+
+/**
  * §7.3 — fechar os registos cuja hora limite já passou. Classificação
  * definitiva e `fechado = true`.
  *
@@ -257,7 +293,7 @@ export function fecharVencidos(leitura: { ok: Date; desde: Date }): number {
     bd.prepare(`UPDATE registos SET fechado = 1 WHERE id = ?`).run(reg.id);
     // Depois de fechar, para que o detalhe use a redação de dia fechado. Se o
     // 5 não tiver prova de ausência, o `reavaliar` volta a abri-lo.
-    const r = reavaliar(reg.newsletter_id, reg.data_prevista);
+    const r = reavaliar(reg.newsletter_id, reg.data_prevista, { lido: true });
     if (r?.fechado === 1) fechados++;
   }
   return fechados;
