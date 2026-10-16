@@ -148,6 +148,24 @@ export function corresponder(
   // mostra-o em "por classificar".
   const ordenadas = [...candidatas].sort((a, b) => especificidade(b) - especificidade(a));
   if (especificidade(ordenadas[0]) === especificidade(ordenadas[1])) return null;
+  // Duas marcas no corpo que identificam newsletters DIFERENTES são duas
+  // provas contraditórias, não uma mais específica do que a outra: o
+  // comprimento do nome da marca não decide nada. Por atribuir.
+  const marcasQueBatem = (n: Newsletter): Set<string> => {
+    const s = new Set<string>();
+    if (n.marcaCorpo.trim() && bate(n)) s.add(normalizarHtml(n.marcaCorpo.trim()));
+    for (const a of n.alternativas ?? []) {
+      const m = a.marcaCorpo.trim();
+      if (m && enderecoBate(remetente, [a.remetente]) && traz(normalizarHtml(m))) s.add(normalizarHtml(m));
+    }
+    return s;
+  };
+  const doVencedor = marcasQueBatem(ordenadas[0]);
+  const contraditoria = ordenadas.slice(1).some((o) => {
+    const outras = marcasQueBatem(o);
+    return doVencedor.size > 0 && outras.size > 0 && ![...doVencedor].some((m) => outras.has(m));
+  });
+  if (contraditoria) return null;
   return ordenadas[0];
 }
 

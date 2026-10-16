@@ -2,10 +2,12 @@ import { db } from "./db.ts";
 import type { MensagemGraph } from "./graph/mail.ts";
 import { corresponder } from "./correspondencia.ts";
 import { processarCorpo } from "./conteudo.ts";
-import { extrairMarcas, garantirMarcas, marcasDoEmail } from "./marcas.ts";
+import { extrairMarcas, garantirMarcas, marcasDoEmail, type Marcas } from "./marcas.ts";
+import { podeSerDe } from "./prova.ts";
+import { PAGAS } from "../../config/pagas.ts";
 import { reavaliar, registoDe } from "./registos.ts";
 import { dataEdicao } from "./edicao.ts";
-import { newsletterPorId } from "../../config/newsletters.ts";
+import { NEWSLETTERS, newsletterPorId } from "../../config/newsletters.ts";
 import { paraIso, somarDias } from "./tempo.ts";
 import type { Newsletter } from "./tipos.ts";
 
@@ -71,7 +73,8 @@ export function reclassificar(): Set<string> {
   const afetados = new Set<string>();
 
   for (const e of emails) {
-    const novo = corresponder(e.remetente, e.assunto, marcasDoEmail(e.id, e.marcas))?.id ?? null;
+    const m = marcasDoEmail(e.id, e.marcas);
+    const novo = corresponder(e.remetente, e.assunto, m)?.id ?? null;
     if (novo === e.newsletter_id) continue;
     atualizar.run(novo, e.id);
     const recebido = new Date(e.recebido_em);
@@ -79,13 +82,20 @@ export function reclassificar(): Set<string> {
     if (antiga) afetados.add(chave(antiga, recebido));
     const nova = novo ? newsletterPorId(novo) : undefined;
     if (nova) afetados.add(chave(nova, recebido));
+    // Deixou de contar para uma newsletter: pode travar o "Não Saiu" de outras.
+    if (!novo) for (const c of plausiveis(e.remetente, e.assunto, m, recebido)) afetados.add(c);
   }
 
   return afetados;
 }
 
-export async function recolher(horas = 24): Promise<ResumoRecolha> {
-  const bd = db();
+/** Quem lê a caixa: o Gmail, o Graph, ou (nos testes) uma lista fixa. */
+export type LeitorCaixa = (
+  horas: number,
+  conhecido?: (internetMessageId: string) => boolean,
+) => Promise<MensagemGraph[]>;
+
+async function leitorPadrao(): Promise<LeitorCaixa> {
   // Carregado só aqui: o MSAL arrasta dependências pesadas que nao devem
   // entrar no grafo estatico do arranque do Next. O Gmail tem precedência
   // quando está configurado.
@@ -93,6 +103,28 @@ export async function recolher(horas = 24): Promise<ResumoRecolha> {
   const { lerCaixa } = temGmail()
     ? await import("./gmail/mail.ts")
     : await import("./graph/mail.ts");
+  return lerCaixa;
+}
+
+/**
+ * Um email que ficou por atribuir pode ser a edição de uma newsletter cujo
+ * "Não Saiu" já fechou (chegou mais tarde na janela, com um nome que nenhuma
+ * regra conhece). A prova de ausência dessas newsletters tem de ser revista:
+ * devolve os pares newsletter|dia a reavaliar, só dos registos que existem.
+ */
+function plausiveis(remetente: string, assunto: string, marcas: Marcas, recebido: Date): string[] {
+  const chaves: string[] = [];
+  for (const n of NEWSLETTERS) {
+    if (!n.ativa || PAGAS.has(n.id) || !podeSerDe(n, remetente, assunto, marcas)) continue;
+    const dia = dataEdicao(n, recebido);
+    if (registoDe(n.id, dia)) chaves.push(`${n.id}|${dia}`);
+  }
+  return chaves;
+}
+
+export async function recolher(horas = 24, ler?: LeitorCaixa): Promise<ResumoRecolha> {
+  const bd = db();
+  const lerCaixa = ler ?? (await leitorPadrao());
   // Os já gravados nem chegam a ser descarregados; contam como repetidos.
   const existe = bd.prepare(`SELECT 1 FROM emails WHERE internet_message_id = ?`);
   let jaGravados = 0;
@@ -156,6 +188,8 @@ export async function recolher(horas = 24): Promise<ResumoRecolha> {
       if (n) {
         resumo.atribuidas++;
         afetados.add(chave(n, new Date(m.receivedDateTime)));
+      } else {
+        for (const c of plausiveis(remetente, assunto, marcas, new Date(m.receivedDateTime))) afetados.add(c);
       }
     }
   });

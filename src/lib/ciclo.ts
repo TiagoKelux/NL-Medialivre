@@ -1,5 +1,5 @@
 import { db } from "./db.ts";
-import { fecharVencidos } from "./registos.ts";
+import { fecharVencidos, garantirDias } from "./registos.ts";
 import { intervaloDeBusca } from "./edicao.ts";
 import { temToken } from "./graph/token.ts";
 import { temGmail } from "./gmail/config.ts";
@@ -65,6 +65,13 @@ export async function correrCiclo(): Promise<string[]> {
 
 async function ciclo(): Promise<string[]> {
   const passos: string[] = [];
+
+  // O job das 00h05 não volta a correr se o servidor estava suspenso a essa
+  // hora (o node-cron não repete execuções perdidas). Gerar aqui, idempotente,
+  // garante que hoje (e a última semana) tem registos sem esperar por um
+  // reinício.
+  const gerados = garantirDias(JANELA_MINIMA_DIAS);
+  if (gerados > 0) passos.push(`${gerados} registo(s) gerado(s)`);
 
   if (!temGmail() && !temToken()) {
     const erro = new Error("sem Gmail nem token do Graph configurados");

@@ -23,7 +23,9 @@ export function GET(pedido: Request) {
 
   const pedida = url.searchParams.get("vista");
   const vista = ehVista(pedida) ? pedida : "mensal";
-  const ancora = url.searchParams.get("ate") ?? hoje;
+  // A mesma validação da página: um "ate" mal formado rebentava (500).
+  const pedidaAte = url.searchParams.get("ate");
+  const ancora = pedidaAte && /^\d{4}-\d{2}-\d{2}$/.test(pedidaAte) ? pedidaAte : hoje;
   const filtro = url.searchParams.get("filtro") ?? "todas";
 
   const periodo = calcularPeriodo(vista, ancora, hoje);

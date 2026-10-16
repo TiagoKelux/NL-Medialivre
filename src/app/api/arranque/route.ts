@@ -4,6 +4,7 @@ import { garantirDias, gerarDia, reavaliarRecentes } from "../../../lib/registos
 import { correrCiclo } from "../../../lib/ciclo.ts";
 import { copiaDiaria } from "../../../lib/copias.ts";
 import { garantirMarcas } from "../../../lib/marcas.ts";
+import { FUSO } from "../../../lib/tempo.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,8 @@ export async function POST() {
   }
   global_[CHAVE] = true;
 
-  const fuso = process.env.TZ || "Europe/Lisbon";
+  // O fuso do negócio (tempo.ts), nunca o TZ do servidor.
+  const fuso = FUSO;
 
   // §7.1 — 00h05, gerar o dia.
   cron.schedule(

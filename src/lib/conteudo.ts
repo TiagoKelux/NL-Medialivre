@@ -57,18 +57,75 @@ export function descodificarEntidades(texto: string): string {
   });
 }
 
+// ── HTML mal fechado, em tempo linear ──────────────────────────────────────
+// As expressões `<!--[\s\S]*?-->`, `<style\b[\s\S]*?<\/style>` e `<[^>]+>`
+// voltam ao fim do texto por cada abertura sem fecho: 500 KB de "<img " sem
+// ">" eram 70 s com o servidor parado. Estas funções dão exatamente o mesmo
+// resultado, sem esse custo.
+
+/** Igual a `texto.replace(/<!--[\s\S]*?-->/g, troca)`. */
+export function removerComentarios(texto: string, troca: string): string {
+  let saida = "";
+  let desde = 0;
+  for (let i = texto.indexOf("<!--"); i >= 0; i = texto.indexOf("<!--", desde)) {
+    const f = texto.indexOf("-->", i + 4);
+    if (f < 0) break; // nenhuma abertura daqui para a frente tem fecho
+    saida += texto.slice(desde, i) + troca;
+    desde = f + 3;
+  }
+  return saida + texto.slice(desde);
+}
+
+/** Igual a `texto.replace(/<(a|b|…)\b[\s\S]*?<\/\1>/gi, troca)` para as etiquetas dadas (em minúsculas). */
+export function removerBlocos(texto: string, etiquetas: string[], troca: string): string {
+  // Minúsculas só no ASCII: o comprimento (e os índices) não mudam.
+  const baixo = texto.replace(/[A-Z]+/g, (c) => c.toLowerCase());
+  const semFecho = new Set<string>();
+  let saida = "";
+  let desde = 0;
+  let i = baixo.indexOf("<");
+  while (i >= 0) {
+    let fim = -1;
+    for (const t of etiquetas) {
+      if (semFecho.has(t) || !baixo.startsWith(t, i + 1)) continue;
+      if (/\w/.test(baixo.charAt(i + 1 + t.length))) continue; // o \b depois do nome
+      const f = baixo.indexOf(`</${t}>`, i + 1 + t.length);
+      if (f < 0) {
+        semFecho.add(t); // nenhuma abertura desta etiqueta, daqui para a frente, fecha
+        continue;
+      }
+      fim = f + t.length + 3;
+      break;
+    }
+    if (fim >= 0) {
+      saida += texto.slice(desde, i) + troca;
+      desde = fim;
+      i = baixo.indexOf("<", fim);
+    } else {
+      i = baixo.indexOf("<", i + 1);
+    }
+  }
+  return saida + texto.slice(desde);
+}
+
+/**
+ * Igual a `texto.replace(/<[^>]+>/g, troca)`. Depois do último ">" não há
+ * etiqueta possível; antes dele, cada "<" encontra o seu ">" e a procura avança.
+ */
+export function removerEtiquetas(texto: string, troca: string): string {
+  const k = texto.lastIndexOf(">");
+  if (k < 0) return texto;
+  return texto.slice(0, k + 1).replace(/<[^>]+>/g, troca) + texto.slice(k + 1);
+}
+
 /** 1. Extrair texto do HTML. */
 export function extrairTexto(html: string): string {
-  return descodificarEntidades(
-    html
-      .replace(/<!--[\s\S]*?-->/g, " ")
-      .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
-      .replace(/<head\b[\s\S]*?<\/head>/gi, " ")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/(p|div|tr|td|h[1-6]|li)>/gi, "\n")
-      .replace(/<[^>]+>/g, " "),
-  );
+  let t = removerComentarios(html, " ");
+  t = removerBlocos(t, ["script"], " ");
+  t = removerBlocos(t, ["style"], " ");
+  t = removerBlocos(t, ["head"], " ");
+  t = t.replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|tr|td|h[1-6]|li)>/gi, "\n");
+  return descodificarEntidades(removerEtiquetas(t, " "));
 }
 
 /**
@@ -85,7 +142,9 @@ const PIXEL = /\b(width|height)\s*=\s*["']?[01]\b|track|pixel|beacon|\/open\b/i;
 
 export function extrairImagens(html: string): string {
   const linhas: string[] = [];
-  for (const [tag] of html.matchAll(/<img\b[^>]*>/gi)) {
+  // Uma etiqueta acaba num ">": depois do último não há nenhuma (e a procura
+  // não volta ao fim do texto por cada "<img" sem fecho).
+  for (const [tag] of html.slice(0, html.lastIndexOf(">") + 1).matchAll(/<img\b[^>]*>/gi)) {
     if (PIXEL.test(tag)) continue;
     const src = descodificarEntidades((tag.match(/\bsrc\s*=\s*["']([^"']+)["']/i) ?? [])[1] ?? "");
     const alt = descodificarEntidades((tag.match(/\balt\s*=\s*["']([^"']*)["']/i) ?? [])[1] ?? "");
@@ -244,7 +303,9 @@ export function ehArtigo(destino: string): boolean {
 /** Os artigos distintos para onde o HTML aponta, por ordem de aparição. */
 export function extrairArtigos(html: string): string[] {
   const vistos = new Set<string>();
-  for (const [, href] of (html || "").matchAll(/<a\b[^>]*?\bhref\s*=\s*["']([^"']+)["']/gi)) {
+  // `[^<>]`: a procura de cada "<a" para no "<" seguinte, em vez de voltar
+  // até ao próximo ">" (quadrático com muitos "<a" sem href nem fecho).
+  for (const [, href] of (html || "").matchAll(/<a\b[^<>]*?\bhref\s*=\s*["']([^"']+)["']/gi)) {
     const destino = desembrulharLink(href);
     if (ehArtigo(destino)) vistos.add(destino);
   }
