@@ -1,49 +1,102 @@
 # Media Livre — Monitor de Newsletters
 
-Protótipo funcional (MVP v3). Lê a caixa de correio de 5 em 5 minutos, identifica
-a que newsletter pertence cada email, compara com o que era esperado, atribui um
-código de 1 a 6 e mostra tudo numa página.
+Lê a caixa de correio `nlmedialivre@gmail.com` de 5 em 5 minutos, identifica
+a que newsletter pertence cada email, compara com o calendário de cada uma,
+atribui um código de 1 a 6 e mostra tudo num painel protegido por
+palavra-passe.
+
+- **Painel:** https://34-148-158-177.sslip.io (utilizador `medialivre`)
+- **Manual para a equipa:** [docs/MANUAL-CLIENTE.md](docs/MANUAL-CLIENTE.md)
+- **Servidor, atualizações, cópias, avarias:** [docs/SERVIDOR.md](docs/SERVIDOR.md)
+- **Análise dos duplicados:** [docs/ANALISE-DUPLICADOS.md](docs/ANALISE-DUPLICADOS.md)
+
+## O que faz
+
+- Lê a caixa por IMAP (Gmail: "Todo o correio", Spam e Lixo) de 5 em 5
+  minutos; um email visto em duas pastas conta uma vez.
+- Identifica cada email pelo conteúdo (o bloco de publicidade de cada
+  newsletter), não só pelo remetente — o marketing do editor não passa por
+  edição.
+- Atribui um estado por newsletter e por dia: saiu, atrasada, duplicada,
+  conteúdo repetido, não saiu, não agendada.
+- Só diz "Não Saiu" com **prova de ausência**; sem ela diz que não sabe.
+- Abre sozinho cada email novo (pixel de abertura), para os editores não
+  cortarem o envio à caixa por inatividade.
+- Avisa no painel quando a leitura falha ou pára, e quando um editor deixa de
+  mandar as diárias à caixa.
+- Calendário de cada dia congelado: mudar o Excel hoje não reescreve o
+  passado (há um comando para o fazer de propósito).
+- Feriados nacionais.
+- Vistas diária, semanal e mensal; filtros por periodicidade; resumo e
+  newsletter completa ao passar/clicar numa célula.
+- Exportação para Excel (.xlsx) do que está à vista.
+- Página **Por classificar**: atribuir emails a newsletters e ignorar
+  marketing, sem mexer em código, com registo de quem mudou o quê.
+- Cópia diária da base de dados, dentro e fora do servidor; alerta por email
+  se o monitor parar (docs/SERVIDOR.md).
 
 ## O ciclo
 
 ```
-1. lê a caixa de correio a cada 5 minutos
+1. lê a caixa de correio a cada 5 minutos (e abre os emails novos)
 2. identifica a que newsletter pertence cada email
 3. compara com o que era esperado e atribui um código de 1 a 6
-4. mostra tudo numa página
+4. fecha os registos cuja hora limite passou, se houver prova
+5. mostra tudo numa página
 ```
+
+Outros trabalhos, no mesmo processo (`src/app/api/arranque/route.ts`): às
+00h05 gera as linhas do dia; às 03h30 faz a cópia da base de dados. No
+arranque, tapa os dias em falta e recalcula os últimos 45 dias.
 
 ## Estados
 
 | Código | Designação | Regra |
 |---|---|---|
-| 1 | Saiu e Tem Conteúdo Atualizado | Dentro da janela, conteúdo diferente do anterior, um só envio |
-| 2 | Saiu Atrasada | Chegou depois de `horaPrevista + toleranciaMinutos`, até 6 h depois da `horaPrevista` |
-| 3 | Saiu Duplicada | Dois envios distintos do editor ao mesmo endereço, na mesma janela (ver "Duplicados") |
+| 1 | Saiu e Tem Conteúdo Atualizado | Chegou até à hora limite, conteúdo diferente do da edição anterior, um só envio |
+| 2 | Saiu Atrasada | Chegou depois da hora limite — minutos, horas ou (nas não diárias) dias depois |
+| 3 | Saiu Duplicada | Dois envios distintos do editor ao mesmo endereço, na mesma edição (ver "Duplicados") |
 | 4 | Saiu com Conteúdo Desatualizado | Hash do texto normalizado igual ao da edição anterior, ou exatamente os mesmos artigos (≥ 3) |
-| 5 | Não Saiu | Nada até 6 h depois da `horaPrevista`, com prova de ausência (ver abaixo); ou chegou mais tarde do que isso ("fora de prazo") |
+| 5 | Não Saiu | Nada recebido até à hora limite, **com prova de ausência** (ver abaixo) |
 | 6 | Desativada / Não agendada | `ativa: false`, ou hoje não é dia esperado (as "dias úteis" não são esperadas nos feriados nacionais) |
 
 Precedência, do mais grave para o menos: **6 → 5 → 3 → 4 → 2 → 1**. O 6 avalia-se
 primeiro e faz curto-circuito. O `codigo_estado` tem um `CHECK (BETWEEN 1 AND 6)`
 na base de dados: é impossível gravar outra coisa.
 
-### Janela e prazo
+Para lá do código, o painel e o Excel mostram variantes quando o código não
+pode ser afirmado (`src/lib/apresentacao.ts`, `ROTULO`): **A aguardar** (`…`),
+**Por confirmar** (`?`), **Não recebida – sem prova** (`∅`), **Não assinada no
+email** (`–`) e **Saiu (sem termo de comparação)** (`S`). O significado de cada
+um está no [manual](docs/MANUAL-CLIENTE.md).
+
+### Hora limite e "saiu tarde"
+
+Regra do cliente (08/11/2026): **hora limite = hora prevista + 30 min**
+(`TOLERANCIA_MIN`, em `src/lib/edicao.ts`). Onde o Excel tem duas horas
+("12h ou 18h", "16h30 // 17h"), a prevista é a mais cedo e a tolerância
+alarga-se até à mais tarde + 30 min.
+
+- até à hora limite → saiu (1, 3 ou 4);
+- nada até à hora limite → **5 Não Saiu**, se houver prova de ausência;
+  senão "Não recebida – sem prova" ou "Por confirmar";
+- um email que chegue depois → **2 Saiu Atrasada**, retroativamente: o
+  registo que estava "Não Saiu" passa a 2, com o atraso no detalhe. Um email
+  que chegou nunca é "Não Saiu".
 
 A edição de um dia D é tudo o que chega entre **6 h antes e 18 h depois** da
-`horaPrevista` em D (`src/lib/edicao.ts`). Dentro dela:
+hora prevista em D. A das 21:00 que chega às 00:30 do dia seguinte é a do dia
+anterior, atrasada. Numa newsletter que não sai todos os dias (semanal,
+"dias úteis" ao fim de semana), um email que caia num dia **sem edição
+própria** conta para a última edição em falta, até 31 dias depois
+(`edicaoAnteriorEmFalta`): a semanal de quinta que chega a sábado é a de
+quinta, atrasada. Numa diária, o dia seguinte já tem edição própria.
 
-- até `horaPrevista + toleranciaMinutos` → no prazo (1, 3 ou 4);
-- até **6 h depois** da `horaPrevista` → **2 Atrasada**. A das 21:00 que chega
-  às 00:30 do dia seguinte é Atrasada no seu dia;
-- mais tarde → **5 Não Saiu (fora de prazo)**, no dia dela. O detalhe diz a
-  que horas chegou. Não passa para o dia seguinte.
+De 29/09 a 15/10, o maior adiantamento real foi de 1 h 27 min.
 
-Entre o limite e as 6 h, sem nada recebido, o painel mostra **Em atraso –
-ainda não chegou** (`!`), nunca "Não Saiu": pode ainda chegar como Atrasada. O
-"Não Saiu" por ausência só fecha com uma leitura da caixa feita depois das
-6 h. De 29/09 a 15/10, o maior adiantamento real foi de 1 h 27 min e o maior
-atraso de 1 h 33 min.
+O ciclo revê os "Não Saiu" dos últimos 14 dias (`reverNaoSaiu`): os que
+recebem um email passam a 2; os que perdem a prova (por exemplo, faltaram
+também as edições seguintes) voltam a "sem prova".
 
 ### Feriados
 
@@ -59,9 +112,12 @@ municipais não contam. Num feriado, uma newsletter de "dias úteis":
 
 Cada registo grava o calendário da newsletter nesse dia (`registos.calendario`:
 periodicidade, dias, hora, tolerância, ativa). Quando o dia passa, esse
-calendário fica congelado. Mudar o Excel hoje muda hoje e os dias seguintes,
-nunca o que já passou. As regras de identificação e de classificação
-continuam a aplicar-se a todo o histórico.
+calendário fica congelado — também para a prova de ausência. Mudar o Excel
+hoje muda hoje e os dias seguintes, nunca o que já passou. As regras de
+identificação e de classificação continuam a aplicar-se a todo o histórico.
+
+Para corrigir o passado de propósito (o Excel estava errado), ver
+"Corrigir o passado" abaixo.
 
 ### Edição ou não: a campanha do Echobox
 
@@ -72,21 +128,22 @@ Todas as edições trazem um link "ver no browser" do Echobox com um token
 - 119 edições de 119 trazem o token;
 - há uma campanha por newsletter (25 newsletters, 25 campanhas), e nenhuma
   campanha é partilhada;
-- o marketing (boas-vindas, reconquista, "Indica", Record Premium) não traz
-  token, ou vem de campanhas próprias.
+- o marketing (boas-vindas, reconquista, "Indica") não traz token, ou vem de
+  campanhas próprias.
 
 As campanhas de cada newsletter são **aprendidas** das edições que a
 `marcaCorpo` atribuiu (`lerCampanhas`), nunca escritas à mão. Um email por
-atribuir só trava o "Não Saiu" de uma newsletter (regra 4 da prova) se:
+atribuir só trava o "Não Saiu" de uma newsletter (regra 3 da prova) se:
 
 - vier da campanha dela;
+- ou tiver cara de edição (bloco de publicidade ou `marcaCorpo`) — rede de
+  segurança para templates e campanhas novas;
 - ou, enquanto ela não tem campanha conhecida, se a heurística do remetente
   o achar plausível.
 
-Vir da campanha de outra newsletter, de uma campanha nova, ou sem token
-quando as edições dela o trazem, deixa de travar (`campanhaDecide`, em
-`prova.ts`). Nos dados reais, isto tirou os 5 bloqueios falsos que havia,
-todos promoções "FLASH! Indica".
+Vir da campanha de outra newsletter, de uma campanha nova sem cara de edição,
+ou sem token quando as edições dela o trazem, deixa de travar
+(`campanhaDecide`, em `prova.ts`).
 
 Os emails marcados no painel como **"não é newsletter"** também deixam de
 travar o "Não Saiu".
@@ -97,8 +154,9 @@ A análise completa está em [docs/ANALISE-DUPLICADOS.md](docs/ANALISE-DUPLICADO
 Pelo token, cada email diz de que envio do editor vem e para que endereço foi:
 
 - o **mesmo envio** a chegar duas vezes (reentrega) conta como um;
-- a **caixa inscrita com dois endereços** (o Gmail ignora os pontos) conta só
-  o primeiro endereço, e o detalhe avisa;
+- a **caixa inscrita com dois endereços** (o Gmail ignora os pontos:
+  `nl.medialivre@` e `nlmedialivre@` são a mesma caixa, mas para o editor são
+  dois assinantes) conta só o primeiro endereço, e o detalhe avisa;
 - **dois envios distintos ao mesmo endereço** → **3 Duplicada**, "ids de envio
   diferentes";
 - sem token, cada Message-ID diferente continua a ser um envio.
@@ -131,190 +189,206 @@ O hash e os artigos são recalculados do `corpo_html` a cada reavaliação, dos 
 lados: um `hash_conteudo` gravado com uma normalização antiga nunca é comparado
 com um feito com a nova.
 
+Um 1 sem edição anterior comparável mostra-se como **Saiu (sem termo de
+comparação)** (ressalva `sem-comparacao`): chegou, mas "conteúdo atualizado"
+não está provado.
+
 ### Prova de ausência
 
 Um registo só fecha como **5 — Não Saiu** quando há prova de que a newsletter
 não chegou: "a caixa foi lida e não veio nada" não chega (os editores cortam o
-envio a caixas inativas). Sem prova fica em aberto (`fechado = 0`) e o painel
-e o Excel mostram-no como **Por confirmar** (falta a leitura) ou **Não
-recebida – sem prova** (ressalva `sem-prova`), ou **Não assinada no email** se
-não tiver remetente, com o detalhe a dizer porquê. A prova exige
-(`src/lib/prova.ts`):
+envio a caixas inativas). Sem prova fica em aberto (`fechado = 0`, ressalva
+`sem-prova`) e o painel e o Excel mostram **Não recebida – sem prova**, com o
+detalhe a dizer porquê.
 
-1. uma leitura bem-sucedida da caixa depois do fim do prazo, `horaPrevista` + 6 h (mais 10 min de margem),
-   com a cobertura contínua das leituras a abranger toda a janela da edição;
-2. remetentes configurados;
-3. pelo menos um email da newsletter recebido **antes** desse dia (prova de
+A prova de leitura (`fecharVencidos`, em `src/lib/registos.ts`): uma leitura
+bem-sucedida da caixa pelo menos 10 min depois da hora limite
+(`MARGEM_FECHO_MIN`), com a cobertura contínua das leituras a abranger toda
+a janela da edição. Enquanto não houver, o registo mostra **Por confirmar**.
+
+A prova de ausência (`motivosSemProva`, em `src/lib/prova.ts`) exige, para
+todas as newsletters — gratuitas e pagas:
+
+1. remetentes configurados;
+2. pelo menos um email da newsletter recebido **antes** desse dia (prova de
    que a caixa está inscrita);
-4. nenhum email por atribuir, na janela da edição, que possa ser dela — do
+3. nenhum email por atribuir, na janela da edição, que possa ser dela — do
    mesmo remetente configurado, ou com a marca e o nome (ou o padrão do
    remetente) no nome ou no assunto. O mesmo domínio com outro endereço não
    conta, para o marketing de assinaturas não travar as gratuitas da marca;
-5. um **canário**: outro email do mesmo remetente (endereço ou domínio)
+4. um **canário**: outro email do mesmo remetente (endereço ou domínio)
    chegou nas 24 h depois do limite — que não seja marketing do editor
    (boas-vindas, promoções conhecidas, reconquista): a campanha de
    reconquista chega precisamente quando o editor corta as edições;
-6. nenhum email de reconquista do mesmo domínio nos 30 dias anteriores, nem
-   nas 24 h do canário. É
-   reconhecido pela **estrutura**, não pela redação do assunto
-   (`eNaoEdicaoDoEditor`, em `correspondencia.ts`): vem de um endereço de
-   edições, não traz marca de edição (nem o bloco `/4196/…_LEADERBOARD`, nem a
-   `marcaCorpo` de nenhuma newsletter desse endereço), foi feito no editor de
-   campanhas (imagens em `assets.unlayer.com`) e tem menos de 2 000
-   caracteres de texto. As boas-vindas ("Bem-vindo(a)…") têm o mesmo molde e
-   não contam; os assuntos antigos ("Queremos garantir que continua
-   connosco", "Notámos que há algum tempo…") continuam a contar como rede
-   extra;
-7. menos de 3 edições seguidas em falta (2 nas semanais e mensais).
+5. nenhum email de reconquista do mesmo domínio nos 30 dias anteriores, nem
+   nas 24 h do canário. É reconhecido pela **estrutura**, não pela redação do
+   assunto (`eNaoEdicaoDoEditor`, em `correspondencia.ts`): vem de um
+   endereço de edições, não traz marca de edição (nem o bloco
+   `/4196/…_LEADERBOARD`, nem a `marcaCorpo` de nenhuma newsletter desse
+   endereço), foi feito no editor de campanhas (imagens em
+   `assets.unlayer.com`) e tem menos de 2 000 caracteres de texto. As
+   boas-vindas ("Bem-vindo(a)…") têm o mesmo molde e não contam; os assuntos
+   antigos ("Queremos garantir que continua connosco", "Notámos que há algum
+   tempo…", "Sentimos a sua falta") continuam a contar como rede extra;
+6. menos de **3 edições seguidas em falta** (2 nas semanais e mensais),
+   contando para trás **e para a frente**. O primeiro dia de um corte da
+   caixa parece um "Não Saiu" isolado; quando faltam também as seguintes,
+   toda a sequência passa a "Não recebida – sem prova".
 
-Enquanto não houver uma leitura que cumpra o ponto 1, o registo mostra-se
-**Por confirmar**, nunca "Não recebida": o arranque reavalia os registos antes
-de ler a caixa, e com a leitura a falhar o email pode estar lá por ler. Um
-email por atribuir que chegue depois de um "Não Saiu" fechado, e possa ser
-dele (ponto 4), reabre-o na própria recolha. Um registo que deixe de ser 6
-(newsletter reativada, calendário mudado) não herda o `fechado` do 6, e nada
-fica fechado antes do limite.
+O arranque reavalia os registos antes de ler a caixa, e com a leitura a falhar
+nada fecha. Um email por atribuir que chegue depois de um "Não Saiu" fechado,
+e possa ser dele (ponto 3), reabre-o. Um registo que deixe de ser 6
+(newsletter reativada, calendário mudado) não herda o `fechado` do 6.
 
-As pagas (`config/pagas.ts`) estão isentas de 2 a 7: a caixa não está inscrita
-nelas de propósito e o 5 delas é o grupo de controlo do motor — mostram-se
-como **5 Não Saiu (controlo)**, mesmo sem remetente.
+**Pagas:** desde 05/11/2026 a caixa tem acesso premium por um ano. As pagas
+(`config/pagas.ts`) deixaram de ser grupo de controlo e seguem as mesmas
+regras; a lista serve só para a estrela ★ no painel.
 
-Um 1 sem edição anterior comparável mostra-se como **Saiu (sem termo de
-comparação)** (ressalva `sem-comparacao`): chegou, mas "conteúdo atualizado"
-não está provado. As ressalvas vivem na coluna `registos.ressalva`; o
-`codigo_estado` e o seu CHECK não mudam.
+As ressalvas vivem na coluna `registos.ressalva`; o `codigo_estado` e o seu
+CHECK não mudam.
 
-### Caixa cortada
+### Caixa cortada e abertura automática
 
-Os editores deixam de mandar as diárias a caixas que nunca abrem os emails.
-A leitura continua a correr bem, por isso isto não se vê na saúde da leitura.
-`src/lib/caixa.ts` mede, por domínio do editor (só gratuitas, ativas, com
-remetente), a última edição recebida e quantos dias esperados de uma diária
-(diária ou dias úteis, com o limite já passado) passaram sem **nenhuma**
-diária desse domínio. Com 2 ou mais, o domínio entra em `caixaCortada`:
+Os editores deixam de mandar uma lista a quem não abre **6 envios seguidos**.
+A caixa é lida por IMAP, que nunca carrega imagens: para o editor, a caixa
+nunca abria nada, e a 06/10 as diárias de CM, Record, Negócios e Máxima
+deixaram de chegar (as da FLASH! a 15/10).
+
+Desde então, a recolha pede o **pixel de abertura** do Amazon SES de cada
+email novo (`src/lib/abertura.ts`) — o que um cliente de email faz ao mostrar
+as imagens. Só esse pixel: nunca um link nem outras imagens. Uma falha nunca
+trava a recolha. Desliga-se com `MARCAR_ABERTURA=0`.
+
+Uma lista que já foi cortada não volta sozinha: é preciso reinscrever a caixa
+(procedimento em [docs/SERVIDOR.md](docs/SERVIDOR.md#uma-newsletter-ou-uma-marca-inteira-deixou-de-chegar)).
+Para o detetar, `src/lib/caixa.ts` mede, por domínio do editor (diárias
+ativas com remetente), quantos dias esperados de uma diária, com o limite já
+passado, ficaram sem **nenhuma** diária desse domínio. Com 2 ou mais, o
+domínio entra em `caixaCortada`:
 
 ```json
 "caixaCortada": [{ "dominio": "news.jornalrecord.pt", "desde": "2026-10-06",
                    "ultimaEdicao": "2026-10-05T10:05:48.000Z", "diasEsperadosSemEdicao": 10 }]
 ```
 
-Vem no `/api/estado` (campos `caixa` e `caixaCortada`, atrás da
-palavra-passe do painel) **sem mexer no 200/503**, que continua a depender só
-da leitura — é disso que a verificação externa precisa. O `/api/saude` é
-público e só traz `saudavel`, `ultimaLeitura`, `minutosDesdeLeitura` e
-`falha` (um código genérico, `"leitura_falhou"`, nunca o erro em bruto). O ciclo escreve no log uma linha `CAIXA CORTADA …` quando a
-lista muda (e `Caixa normalizada` quando esvazia), sem serviços externos.
-Um domínio de que nunca chegou nenhuma diária não conta: não há prova de que
-a caixa estivesse inscrita.
+Aparece no painel (aviso no topo), no `/api/estado` (atrás da palavra-passe)
+e no log (`CAIXA CORTADA …`, e `Caixa normalizada` quando esvazia), **sem
+mexer no 200/503** do `/api/saude`, que depende só da leitura. Um domínio de
+que nunca chegou nenhuma diária não conta.
+
+### Saúde
+
+- `/api/saude` — público (o alerta do Cloud Monitoring lê-o). Só traz
+  `saudavel`, `ultimaLeitura`, `minutosDesdeLeitura` e `falha` (código
+  genérico `"leitura_falhou"`, nunca o erro em bruto). **503 só ao fim de
+  15 min sem uma leitura boa**: uma falha isolada do Gmail recupera no ciclo
+  seguinte e não dispara o alerta.
+- `/api/estado` — o mesmo 200/503 com o detalhe: a mensagem de erro, a caixa
+  por editor e `caixaCortada`.
 
 ### Marcas guardadas à entrada
 
 A identificação precisa de meia dúzia de coisas do corpo (as `marcaCorpo`
 que traz, o bloco de publicidade, as imagens do editor de campanhas, o
-tamanho do texto). São extraídas uma vez, à entrada, para a coluna
-`emails.marcas` (`src/lib/marcas.ts`), e a reclassificação de 5 em 5 minutos
-usa-as em vez de reler o `corpo_html` de todos os emails. Bases antigas são
-preenchidas no arranque e no ciclo (`garantirMarcas`, idempotente). As marcas
+tamanho do texto, o token do Echobox). São extraídas uma vez, à entrada, para
+a coluna `emails.marcas` (`src/lib/marcas.ts`), e a reclassificação de 5 em 5
+minutos usa-as em vez de reler o `corpo_html` de todos os emails. As marcas
 levam a impressão digital das `marcaCorpo` configuradas: mudar uma marca em
-`config/newsletters.ts` faz com que sejam extraídas outra vez, uma vez — o
-resultado é sempre o mesmo que procurar no HTML. Um índice de cobertura
-(`idx_emails_identificacao`) evita que a leitura atravesse as páginas de
-overflow dos corpos.
+`config/newsletters.ts` faz com que sejam extraídas outra vez, uma vez.
 
-## Arrancar
+## Arrancar (desenvolvimento)
 
 ```bash
 npm install
-cp .env.example .env      # preencher GRAPH_CLIENT_ID e GRAPH_TENANT_ID
+cp .env.example .env      # preencher GMAIL_USER e GMAIL_APP_PASSWORD
 npm run migrar            # cria a base de dados e as linhas dos últimos 30 dias
-npm run auth              # autentica uma vez, por device code
 npm run dev               # http://localhost:3000
 ```
 
-Sem `npm run auth` a aplicação arranca na mesma: gera os registos e mostra a
-página, mas não lê a caixa. É o estado em que fica útil para ver a estrutura
-antes de haver acesso ao Graph.
+| Variável (`.env`) | Para quê |
+|---|---|
+| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | A caixa por IMAP. A palavra-passe de app cria-se em https://myaccount.google.com/apppasswords e exige a verificação em dois passos ligada na conta |
+| `DATABASE_PATH` | Por omissão `./data/monitor.db` |
+| `MONITOR_INICIO` | Primeiro dia monitorizado (AAAA-MM-DD); antes dele não há registos |
+| `MARCAR_ABERTURA` | `0` desliga a abertura automática dos emails |
+| `HEALTHCHECK_URL` | Opcional (healthchecks.io). Não é usado no servidor atual |
+| `GRAPH_CLIENT_ID`, `GRAPH_TENANT_ID` | Só para o caminho antigo do Microsoft Graph (abaixo) |
 
-### Registo no Azure
+Sem caixa configurada a aplicação arranca na mesma: gera os registos e mostra
+a página, mas não lê nada (o painel avisa "A caixa ainda não foi lida").
 
-A app precisa de:
+Parar o `npm run dev` antes de um `npm run build`: os dois escrevem em
+`.next/` e o build fica com ficheiros em falta (todas as rotas `/api`
+devolvem 500).
 
-- permissão **delegada** `Mail.Read`;
-- **Allow public client flows** ativo — sem isto o fluxo *device code* não
-  devolve refresh token.
+### Microsoft Graph (caminho antigo, opcional)
 
-### Gmail em vez do Graph
-
-Com `GMAIL_USER` e `GMAIL_APP_PASSWORD` preenchidos no `.env`, a caixa lê-se
-por IMAP (caixa de entrada + Spam) e o Graph é ignorado. A palavra-passe de app
-cria-se em https://myaccount.google.com/apppasswords e exige a verificação em
-dois passos ligada na conta.
-
-### Sempre ligado (pm2)
-
-```bash
-npm run build
-pm2 start ecosystem.config.cjs   # http://localhost:3001
-pm2 save
-```
-
-Parar o `npm run dev` antes do build: os dois escrevem em `.next/` e o build
-fica com ficheiros em falta (todas as rotas `/api` devolvem 500).
+O primeiro protótipo lia uma caixa Microsoft 365 pelo Graph
+(`src/lib/graph/`). Continua a funcionar, mas só é usado se `GMAIL_USER` e
+`GMAIL_APP_PASSWORD` estiverem vazios. Precisa de uma app no Azure (Entra ID)
+com a permissão **delegada** `Mail.Read` e **Allow public client flows**
+ativo, de `GRAPH_CLIENT_ID`/`GRAPH_TENANT_ID` no `.env` e de `npm run auth`
+uma vez (device code).
 
 ## As newsletters
 
-`config/newsletters.ts` é **gerado** a partir da folha "Horário" do Excel:
-
-```bash
-npm run importar -- "C:/caminho/Newsletters Horários.xlsx"
-```
-
-São 62 newsletters, 48 ativas. Não editar periodicidades nem horas à mão —
-mexer no Excel e voltar a correr o importador, que lê o `.xlsx` diretamente
-(sem dependências: um xlsx é um zip, e o `node:zlib` chega para o abrir).
+`config/newsletters.ts` é **gerado** a partir da folha "Horário" do Excel. São
+62 newsletters, 48 ativas. Não editar periodicidades nem horas à mão.
 
 O importador desliga (`ativa: false`) tudo o que não consiga agendar com
 segurança — estado que não seja "Ativa", periodicidade que não reconheça, ou
 hora em falta — e deixa um comentário por cima da entrada a dizer porquê. É
 preferível uma linha a cinzento do que inventar um horário que o Excel não diz.
 
-Onde o Excel tem duas horas ("12h ou 18h", "16h30 // 17h"), toma-se a mais cedo
-como prevista e alarga-se a tolerância até cobrir a mais tarde.
+### Acrescentar ou mudar uma newsletter
 
-### Preencher os remetentes
+1. **Excel** — mudar a folha "Horário" (nome, periodicidade, dias, hora,
+   estado).
+2. **Importar**, no PC, na pasta do projeto:
 
-O Excel não tem esta informação. Os campos `remetentes`, `marcaCorpo`,
-`padraoRemetente` e `padraoAssunto` começam vazios e são o único bloqueio: não estão no Excel e têm
-de vir de emails reais. Enquanto estiverem vazios, o sistema **recolhe e guarda**
-os emails mas não os classifica, e a página mostra um aviso.
+   ```bash
+   npm run importar -- "C:/caminho/Newsletters Horários.xlsx"
+   ```
 
-Para os descobrir:
+   Lê o `.xlsx` diretamente (sem dependências). Preserva `remetentes`,
+   `padraoRemetente`, `padraoAssunto` e `marcaCorpo` de cada newsletter, pelo
+   `id`. Se um `id` mudar (o nome mudou no Excel), lista as regras que se
+   perderiam, com ATENÇÃO, e sai com erro: copiam-se à mão para a entrada nova
+   (o ficheiro anterior está no git).
+3. **Reconhecimento** — numa newsletter nova, preencher em
+   `config/newsletters.ts` os `remetentes` e a `marcaCorpo` (ver abaixo). Em
+   alternativa, sem código: esperar que chegue uma edição e atribuí-la na
+   página **Por classificar**.
+4. **Verificar** contra os emails já guardados, só em leitura:
+   `npm run verificar [caminho/para/monitor.db]` — quantos emails cabem a cada
+   newsletter, os sem dono e os que serviriam a mais do que uma regra (tem de
+   ser zero). `npm test` tem de passar.
+5. **Commit e instalar** no servidor ([docs/SERVIDOR.md](docs/SERVIDOR.md#atualizar-o-código)).
+   No arranque, os emails já guardados são reclassificados e os últimos 45
+   dias recalculados — o histórico não se perde.
 
-```bash
-npm run listar    # imprime remetente + assunto das últimas 24 h, sem gravar
-```
+A mudança de calendário vale de hoje para a frente. Para a aplicar também ao
+passado, ver "Corrigir o passado".
 
-Depois de preencher, os emails já guardados são reclassificados
-automaticamente no ciclo seguinte — o histórico não se perde.
-
-Cada newsletter reconhece-se por:
+### Como se reconhece uma newsletter
 
 | Campo | O que é |
 |---|---|
 | `remetentes` | Endereços aceites. Uma entrada que comece por `@` vale para todo o domínio (`@exemplo.pt`) |
-| `marcaCorpo` | Texto que **só as edições** desta newsletter trazem no HTML. É o critério principal (ver abaixo) |
+| `marcaCorpo` | Texto que **só as edições** desta newsletter trazem no HTML. É o critério principal |
 | `padraoRemetente` | Nome do remetente **por inteiro** ("Vidas Geral"), sem distinção de maiúsculas, nunca por pedaço |
 | `padraoAssunto` | Pedaço fixo do assunto, sem distinção de maiúsculas |
 
 O endereço tem de bater, e todos os outros campos preenchidos também.
+Enquanto uma newsletter não tiver remetente, o monitor guarda os emails mas
+não os atribui, e o painel mostra "Não assinada no email".
 
 **Porque é que o corpo manda.** As newsletters de cada marca partilham o
 endereço (`info@news.jornaldenegocios.pt`, `info@news.flash.pt`…), o assunto é
 a manchete do dia, e as editoras mandam marketing — boas-vindas, "volte a
 ler-nos", "notámos que não lê" — do **mesmo endereço e com o mesmo nome** de uma
-newsletter verdadeira ("FLASH! Mundo", "Máxima", "Jornal de Negócios Opinião do
-dia", "Correio da Manhã Bom dia"). A Máxima Geral e a Máxima Fim de Semana
-chegam ambas como "Máxima". Endereço e nome não chegam.
+newsletter verdadeira. A Máxima Geral e a Máxima Fim de Semana chegam ambas
+como "Máxima". Endereço e nome não chegam.
 
 O que prova a edição é o bloco de publicidade: toda a edição de CM, Record,
 Negócios, FLASH! e Máxima traz
@@ -322,142 +396,73 @@ Negócios, FLASH! e Máxima traz
 nenhum email de marketing o traz. A `marcaCorpo` dessas newsletters é
 `/4196/<MARCA>_MASTHEAD/NEWSLETTER_<NOME>_LEADERBOARD` (a marca conta:
 `NEWSLETTER_BOMDIA` existe na CM e na FLASH!). Vidas e MUST não têm o bloco: a
-marca é o logótipo do cabeçalho, e exige-se também o nome do remetente. Um
-email do remetente certo sem a marca fica **por atribuir** — nunca passa por
-edição.
+marca é o logótipo do cabeçalho, e exige-se também o nome do remetente.
+Algumas pagas e a Primeira Página / Weekend do Negócios reconhecem-se pelo
+remetente e pelo `utm_campaign`. Um email do remetente certo sem a marca fica
+**por atribuir** — nunca passa por edição.
 
-Para descobrir a marca de uma newsletter nova, procurar `MASTHEAD` no HTML de
-uma edição (coluna `corpo_html` da tabela `emails`). No HTML aparece umas vezes
-com `/` e outras com `%2F`; o matcher aceita as duas.
+Para descobrir a marca de uma newsletter nova: procurar `MASTHEAD` no HTML de
+uma edição (coluna `corpo_html` da tabela `emails`; com `/` ou `%2F`, o
+matcher aceita as duas), ou ver a marca que a página Por classificar mostra.
+`npm run listar` imprime remetente e assunto das últimas 24 h, sem gravar;
+`npm run email -- ficheiro.eml` mete um `.eml` no sistema para testar.
 
-A lista `ASSUNTOS_NAO_EDICAO` em `src/lib/correspondencia.ts` continua a existir,
-mas só para o painel não mostrar o marketing conhecido em "por classificar" —
-já não é ela que o impede de contar.
+A lista `ASSUNTOS_NAO_EDICAO` em `src/lib/correspondencia.ts` serve só para o
+painel não mostrar o marketing conhecido em "Por classificar".
 
-**O importador não apaga estes campos.** `npm run importar` volta a escrever
-`config/newsletters.ts`, mas copia `remetentes`, `padraoRemetente`,
-`padraoAssunto` e `marcaCorpo` do ficheiro anterior, newsletter a newsletter,
-pelo `id`. O único caso em que uma regra se perde é o `id` mudar (o nome mudou
-no Excel): o importador lista essas regras no fim, com ATENÇÃO, e sai com erro
-— copiam-se à mão para a entrada nova (o ficheiro anterior está também no git).
-
-**Ficam de propósito sem regra:** as pagas (`config/pagas.ts`), que a caixa não
-assina — são o grupo de controlo e mostram "Não Saiu" —, e os "… Indica"
-(`info@projetos.*`, comércio afiliado, fora de âmbito).
-
-Para confirmar a configuração contra os emails já guardados, só em leitura:
-
-```bash
-npm run verificar [caminho/para/monitor.db]
-```
-
-Mostra quantos emails cabem a cada newsletter, os que ficam sem dono, os de
-marketing ignorados e os que serviriam a mais do que uma regra (tem de ser
-zero).
+**Ficam de propósito sem regra:** os "… Indica" (`info@projetos.*`, comércio
+afiliado, fora de âmbito).
 
 ### Pelo painel, sem código: "Por classificar" (`/classificar`)
 
 O topo do painel liga para `/classificar`, onde a equipa trata sozinha os emails
 que não contaram para nenhuma newsletter:
 
-1. **Atribuir** — o email mostra a marca de publicidade que traz
-   (`/4196/<MARCA>_MASTHEAD/NEWSLETTER_<NOME>_LEADERBOARD`, com `/` ou `%2F`).
+1. **Atribuir** — o email mostra a marca de publicidade que traz.
    Escolhe-se a newsletter (vem sugerida quando a marca o permite) e grava-se
    uma regra "endereço do remetente + marca" na tabela `regras_newsletter`.
    Emails sem marca não se podem atribuir (não há prova de que são edição).
 2. **Não é newsletter** — ignora o assunto (normalizado) ou só aquela
-   mensagem (tabela `exclusoes`). Só tira o email da lista; não mexe em estados.
+   mensagem (tabela `exclusoes`). Tira o email da lista e deixa de travar o
+   "Não Saiu".
 3. Tudo se pode desfazer na mesma página, e cada alteração fica em
-   `alteracoes` (quando, utilizador da autenticação do proxy, o quê).
+   `alteracoes` (quando, o utilizador da palavra-passe do painel, o quê).
 
-As regras do painel **somam-se** ao `config/newsletters.ts`, que continua a ser
-a base (`src/lib/regras-fusao.ts`, aplicado pelo `db()`): nunca lhe tiram nada.
-Numa newsletter que o ficheiro já reconhece, cada regra é uma alternativa
-(`alternativas`); numa por configurar, a primeira regra passa a ser o critério
-principal. A aplicação nunca escreve no `config/*.ts`.
-
-Uma regra é recusada se algum email guardado passasse a servir a duas
-newsletters, se a marca já identificar outra newsletter, ou se o email não
-trouxer a marca escolhida. Depois de gravar, os emails são reclassificados e os
-registos da newsletter (45 dias) reavaliados — o painel muda logo.
+As regras do painel **somam-se** ao `config/newsletters.ts`
+(`src/lib/regras-fusao.ts`): nunca lhe tiram nada, e a aplicação nunca
+escreve no `config/*.ts`. Uma regra é recusada se algum email guardado
+passasse a servir a duas newsletters, se a marca já identificar outra
+newsletter, ou se o email não trouxer a marca escolhida. Depois de gravar, os
+emails são reclassificados e os registos da newsletter (45 dias)
+reavaliados — o painel muda logo.
 
 A mesma página mostra, por newsletter ativa, se é reconhecida (ficheiro,
 painel ou ambos) e quando chegou a última edição.
 
-## Comandos
+## Corrigir o passado
 
-| Comando | O que faz |
-|---|---|
-| `npm run dev` | Servidor de desenvolvimento |
-| `npm run build` / `npm start` | Produção |
-| `npm run auth` | Autenticação por device code (uma vez) |
-| `npm run listar` | Lista os emails das últimas 24 h na consola, sem gravar |
-| `npm run recolher` | Corre um ciclo de recolha à mão |
-| `npm run migrar` | Cria a base de dados e tapa buracos nos últimos 30 dias |
-| `npm run importar -- <xlsx>` | Regera `config/newsletters.ts` a partir do Excel (preserva os remetentes) |
-| `npm run verificar [db]` | Corre a correspondência sobre os emails guardados, só em leitura |
-| `npm run typecheck` | `tsc --noEmit` |
+O calendário de cada dia congela quando o dia passa. Se o Excel estava errado
+(uma newsletter que afinal sai à quarta, não à terça), depois de corrigir o
+Excel, importar e instalar:
 
-## Estrutura
-
-```
-config/newsletters.ts     as 62 newsletters — GERADO, não editar à mão
-src/lib/
-  tipos.ts                códigos, designações, cores, tipos das tabelas
-  tempo.ts                fuso Europe/Lisbon (fixo, nunca o TZ do servidor), dias locais, horas de corte
-  esquema.ts              o SQL das três tabelas
-  db.ts                   ligação SQLite
-  conteudo.ts             normalização do corpo e hash (§7.4)
-  correspondencia.ts      email → newsletter (§6); marketing do editor pela estrutura
-  marcas.ts               marcas do corpo extraídas à entrada (emails.marcas)
-  prova.ts                prova de ausência (quando "nada chegou" é "Não Saiu")
-  caixa.ts                caixa cortada pelo editor (dias sem diárias por domínio)
-  saude.ts                o que o /api/saude (público) e o /api/estado devolvem
-  seguranca.ts            CSP das páginas com HTML de terceiros, limpeza do
-                          HTML dos emails, recusa de pedidos de outra origem
-  classificacao.ts        o motor de estados, função pura (§4, §7)
-  registos.ts             gerar o dia, reavaliar, fechar, ler para a página
-  recolha.ts              gravar emails com deduplicação (§6)
-  ciclo.ts                o ciclo de 5 em 5 minutos
-  graph/token.ts          refresh token na base de dados
-  graph/auth.ts           MSAL, device code, renovação
-  graph/mail.ts           leitura da caixa
-src/app/
-  page.tsx                a página (servidor)
-  api/arranque/route.ts   onde os jobs node-cron são registados
-  api/ciclo/route.ts      disparo manual do ciclo
-  api/gerar-dia/route.ts  disparo manual do job das 00h05
-  api/estado/route.ts     estado em detalhe (erro da leitura, caixa por editor)
-src/middleware.ts         recusa POST/PUT/… vindos de outra origem (CSRF)
-src/components/Painel.tsx a grelha, a matriz semanal e o painel de detalhe
-src/instrumentation.ts    arranque — sem imports, ver nota abaixo
-scripts/importar-horario.ts  gera a config a partir do Excel
-scripts/calibrar-artigos.ts  Jaccard dos artigos entre edições, só leitura
+```bash
+npm run recalendarizar -- negocios-lex 2026-09-01 2026-10-15
+npm run recalendarizar -- todas 2026-09-01 2026-10-15
 ```
 
-### Nota sobre o arranque
-
-Os jobs correm dentro do processo do Next (§9), mas **não** são registados no
-`instrumentation.ts`. O Next compila esse ficheiro num bundle próprio ao qual o
-`serverExternalPackages` não se aplica, e qualquer dependência que toque em
-módulos nativos (`better-sqlite3`) ou em `require("crypto")` à moda antiga
-(`@azure/msal-node` → `jsonwebtoken`) faz falhar o servidor inteiro.
-
-Por isso o `instrumentation.ts` não tem imports nenhuns: faz um `POST` a
-`/api/arranque`, e é essa rota — já do lado do servidor, onde os externos são
-respeitados — que regista os `node-cron`. Continua a ser um processo único.
-O ciclo de 5 em 5 minutos também gera os dias da última semana que faltem
-(idempotente): se o servidor estava suspenso às 00h05, o dia aparece na mesma.
+Aplica o calendário atual aos dias indicados, reavalia-os, diz quantos mudaram
+de código e deixa rasto em `alteracoes`. No servidor corre-se lá
+([docs/SERVIDOR.md](docs/SERVIDOR.md)), como utilizador `monitor`.
 
 ## A página
 
-Um único ecrã e um único quadro, sem autenticação.
+Um painel protegido por palavra-passe (HTTP Basic, no Caddy à frente do
+monitor — ver docs/SERVIDOR.md). O processo só ouve em `127.0.0.1`.
 
 **Duas linhas de filtro:**
 
 - **Periodicidade** — Todas, Todos os dias, 2ª a 6ª, um por cada dia da semana,
-  Dia do mês, Sem agenda. Gerados a partir da configuração: quando as
-  newsletters mudarem, os filtros acompanham.
+  Dia do mês, Sem agenda. Gerados a partir da configuração.
 - **Visão** — Diária, Semanal, Mensal.
 
 | Visão | Mostra | Navega |
@@ -466,19 +471,17 @@ Um único ecrã e um único quadro, sem autenticação.
 | Semanal | Uma semana, 2ª a 6ª | semana a semana |
 | Mensal | Um mês | mês a mês |
 
-Os botões `‹` e `›` andam para trás e para a frente na unidade da vista. O `›`
-desliga-se quando se chega ao presente — não há registos no futuro — e aparece
-um botão `Hoje` quando se está fora dele.
+`‹` e `›` andam na unidade da vista; `›` desliga-se no presente e aparece
+`Hoje` quando se está fora dele. `Incluir fim de semana` acrescenta sábado e
+domingo. A vista e o dia vivem no URL (`/?vista=semanal&ate=2026-08-24`).
 
-Nas vistas semanal e mensal, `Incluir fim de semana` acrescenta sábado e
-domingo, preciso para as duas newsletters que saem ao fim de semana.
+Passar o rato numa célula com conteúdo mostra um resumo da edição; clicar
+abre a newsletter inteira (ou o `detalhe`, quando não chegou nada). A
+**legenda está fixa no fundo**. As pagas têm uma ★.
 
-A vista e o dia que a ancora vivem no URL (`/?vista=semanal&ate=2026-08-24`),
-para os botões funcionarem e para a exportação sair exatamente do que se está
-a ver.
-
-Clicar numa linha ou numa célula mostra o campo `detalhe`. A **legenda dos
-códigos está fixa no fundo**, para estar à mão em qualquer ponto do scroll.
+No topo: o estado da leitura da caixa, o aviso de caixa cortada e a ligação
+para "Por classificar" (com o número de emails da última semana sem
+newsletter).
 
 ## Descarregar para Excel
 
@@ -487,30 +490,105 @@ vista. Três folhas:
 
 | Folha | O que tem |
 |---|---|
-| Matriz | Newsletters em linhas, dias em colunas, o código na célula — a vista que a equipa reconhece |
-| Registos | Uma linha por newsletter por dia, com horas, atraso, ocorrências e o `detalhe` por extenso. É a folha para filtrar e fazer tabelas dinâmicas |
-| Resumo | Contagem de cada código por newsletter no período |
+| Matriz | Newsletters em linhas, dias em colunas, o código (ou o símbolo da variante) na célula |
+| Registos | Uma linha por newsletter por dia, com horas, atraso, código, estado por extenso, ocorrências e o `detalhe`. É a folha para filtrar e fazer tabelas dinâmicas |
+| Resumo | Contagem de cada código por newsletter no período (as variantes não contam) |
 
 O ficheiro é escrito à mão em `src/lib/excel.ts`, sem dependências: um xlsx é
-um zip com XML lá dentro, e o `node:zlib` faz as duas pontas. Evita mais um
-módulo nativo para instalar num Windows sem compilador — o que já custou uma
-vez neste projeto.
+um zip com XML lá dentro, e o `node:zlib` faz as duas pontas.
+
+## Comandos
+
+| Comando | O que faz |
+|---|---|
+| `npm run dev` | Servidor de desenvolvimento |
+| `npm run build` / `npm start` | Produção (no servidor, pelo pm2: `ecosystem.config.cjs`, porta 3001) |
+| `npm test` | Testes (`test/*.test.ts`); correm antes de cada instalação |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run migrar` | Cria a base de dados e tapa buracos nos últimos 30 dias |
+| `npm run recolher` | Corre um ciclo de recolha à mão |
+| `npm run listar` | Lista os emails das últimas 24 h na consola, sem gravar |
+| `npm run email -- <ficheiro.eml>` | Mete um `.eml` no sistema, pelo mesmo caminho da recolha |
+| `npm run importar -- <xlsx>` | Regera `config/newsletters.ts` a partir do Excel (preserva as regras de reconhecimento) |
+| `npm run verificar [db]` | Corre a correspondência sobre os emails guardados, só em leitura |
+| `npm run recalendarizar -- <id\|todas> <de> <ate>` | Aplica o calendário atual a dias passados |
+| `npm run auth` | Só Graph: autenticação por device code (uma vez) |
+
+## Estrutura
+
+```
+config/newsletters.ts     as 62 newsletters — GERADO, não editar à mão (exceto as regras de reconhecimento)
+config/pagas.ts           as pagas (só para a ★)
+src/lib/
+  tipos.ts                códigos, designações, cores, tipos das tabelas
+  apresentacao.ts         variantes mostradas (A aguardar, Por confirmar, sem prova…), partilhado painel/Excel
+  tempo.ts                fuso Europe/Lisbon (fixo, nunca o TZ do servidor), dias locais
+  feriados.ts             feriados nacionais
+  calendario.ts           calendário congelado de cada dia
+  edicao.ts               janela da edição, hora limite (+30 min), edição tardia
+  esquema.ts / db.ts      SQL das tabelas e ligação SQLite (WAL)
+  conteudo.ts             normalização do corpo, hash e artigos
+  correspondencia.ts      email → newsletter; marketing do editor pela estrutura
+  marcas.ts               marcas do corpo e token do Echobox, extraídos à entrada
+  regras.ts, regras-fusao.ts  regras do painel ("Por classificar") e fusão com a config
+  classificacao.ts        o motor de estados, função pura
+  prova.ts                prova de ausência (quando "nada chegou" é "Não Saiu")
+  registos.ts             gerar o dia, reavaliar, fechar, rever "Não Saiu", ler para a página
+  recolha.ts              gravar emails com deduplicação
+  abertura.ts             abrir os emails novos (pixel do SES)
+  caixa.ts                caixa cortada pelo editor
+  leitura.ts              estado e cobertura das leituras da caixa
+  saude.ts                o que o /api/saude e o /api/estado devolvem
+  vigia.ts                linha CAIXA CORTADA no log; HEALTHCHECK_URL opcional
+  copias.ts               cópia diária da base de dados
+  ciclo.ts                o ciclo de 5 em 5 minutos
+  excel.ts                escrita do .xlsx
+  seguranca.ts            CSP, limpeza do HTML dos emails, recusa de pedidos de outra origem
+  gmail/                  leitura da caixa por IMAP (caminho em uso)
+  graph/                  leitura pelo Microsoft Graph (caminho antigo)
+src/app/
+  page.tsx, classificar/  o painel e a página "Por classificar"
+  api/arranque            onde os jobs node-cron são registados
+  api/saude, api/estado   saúde (pública) e detalhe
+  api/exportar            o .xlsx
+  api/classificar         atribuir / ignorar / desfazer
+  api/conteudo, api/email, api/preview  a newsletter guardada e o resumo
+  api/ciclo, api/gerar-dia  disparos manuais (só de dentro da máquina)
+src/middleware.ts         recusa POST/PUT/… vindos de outra origem (CSRF)
+src/components/           Painel.tsx e Classificar.tsx
+src/instrumentation.ts    arranque — sem imports, ver nota abaixo
+scripts/                  importar-horario, recalendarizar, verificar-correspondencia, calibrar-artigos…
+scripts/servidor/         instalar.sh e instalar-gcp.sh
+```
+
+### Nota sobre o arranque
+
+Os jobs correm dentro do processo do Next, mas **não** são registados no
+`instrumentation.ts`. O Next compila esse ficheiro num bundle próprio ao qual o
+`serverExternalPackages` não se aplica, e qualquer dependência que toque em
+módulos nativos (`better-sqlite3`) ou em `require("crypto")` à moda antiga
+faz falhar o servidor inteiro.
+
+Por isso o `instrumentation.ts` não tem imports nenhuns: faz um `POST` a
+`/api/arranque`, e é essa rota que regista os `node-cron`. Continua a ser um
+processo único. O ciclo de 5 em 5 minutos também gera os dias da última semana
+que faltem (idempotente). O ciclo não usa fuso (com `Europe/Lisbon`, o
+node-cron saltou a hora repetida da mudança da hora); os jobs das 00h05 e das
+03h30 usam.
 
 ## Produção
 
-```bash
-npm run build
-pm2 start ecosystem.config.cjs
-```
+No Google Cloud, com pm2, Caddy (HTTPS e palavra-passe), cópias diárias e
+alerta: tudo em [docs/SERVIDOR.md](docs/SERVIDOR.md).
 
-Processo único. Sem Docker, sem Postgres, sem proxy.
+## O que ainda não faz
 
-## O que está fora desta versão
-
-Importação do **histórico** do Excel (a grelha dia-a-dia das folhas "Todos os
-Dias", "2ª a 6ª" e "Semanal"); células com o valor `c`; CRUD de newsletters pela
-interface; autenticação; exportação CSV/XLSX; correções manuais e auditoria;
-ecrã de emails não classificados; alertas.
-
-As 62 newsletters **já estão** configuradas — o que a spec v3 punha fora de
-âmbito era escrevê-las à mão, e isso resolveu-se com o importador.
+- Importar o **histórico** do Excel (a grelha dia-a-dia das folhas "Todos os
+  Dias", "2ª a 6ª" e "Semanal"); células com o valor `c`.
+- Criar ou editar newsletters (calendário) pela interface — faz-se no Excel e
+  com `npm run importar`.
+- Exportação CSV (há .xlsx).
+- Contas individuais no painel: há uma palavra-passe partilhada.
+- Alertas por email de "caixa cortada" ou de newsletters em falta — aparecem
+  no painel e no log; o alerta por email é só para o monitor parado.
+- Reinscrever a caixa sozinho quando um editor a corta.
