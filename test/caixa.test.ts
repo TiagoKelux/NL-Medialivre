@@ -256,9 +256,14 @@ test("vigia: uma linha no log quando a caixa é cortada, nenhuma enquanto não m
   const b = (await vigiarCaixa(lisboa("2026-10-13", "23:10"), escrever)) ?? "";
   assert.match(b, /news\.jornalrecord\.pt/);
   assert.doesNotMatch(b, /maxima/);
-  // A Record também: a caixa normalizou.
+  // A Record também: os domínios voltaram — mas não se diz "normalizada"
+  // enquanto houver listas desses domínios em silêncio (a Record Sporting,
+  // sem nada desde 08/10).
   gravar("Record Geral <info@news.jornalrecord.pt>", "Geral", lisboa("2026-10-13", "09:00"), "record-geral", "<p>f</p>");
-  assert.match((await vigiarCaixa(lisboa("2026-10-13", "23:15"), escrever)) ?? "", /normalizada/);
+  const c = (await vigiarCaixa(lisboa("2026-10-13", "23:15"), escrever)) ?? "";
+  assert.match(c, /voltaram a mandar diárias de todos os domínios, mas .* em silêncio/);
+  assert.match(c, /Sporting/);
+  assert.doesNotMatch(c, /normalizada/);
   assert.equal(linhas.length, 3);
 });
 

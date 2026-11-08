@@ -1,7 +1,8 @@
 import { estaConfigurada, newsletterPorId } from "../../config/newsletters.ts";
 import { PAGAS } from "../../config/pagas.ts";
 import { estadoLeitura } from "../lib/leitura.ts";
-import { saudeCaixa } from "../lib/caixa.ts";
+import { vigilanciaListas } from "../lib/caixa.ts";
+import { extrairNome } from "../lib/correspondencia.ts";
 import { garantirDias, grelhaDoDia, matriz } from "../lib/registos.ts";
 import { contarPorClassificar } from "../lib/regras.ts";
 import { calcularPeriodo, diasDoPeriodo, ehData, ehVista } from "../lib/periodo.ts";
@@ -15,7 +16,8 @@ import {
   segundaDaSemana,
 } from "../lib/tempo.ts";
 import Painel, {
-  type CaixaCortadaAviso,
+  type ListaSilencioAviso,
+  type ReconquistaAviso,
   type CelulaMatriz,
   type LinhaDia,
   type LinhaMatriz,
@@ -100,25 +102,38 @@ export default async function Pagina({
     celulas: l.celulas as (CelulaMatriz | null)[],
   }));
 
-  // Editores que deixaram de mandar as diárias a esta caixa (lib/caixa.ts).
-  // Sem isto, os "Não recebida – sem prova" liam-se como newsletters falhadas.
-  let caixaCortada: CaixaCortadaAviso[] = [];
+  // Newsletters que deixaram de chegar a esta caixa, uma a uma, e os emails de
+  // reconquista recentes (lib/caixa.ts). Sem isto, os "Não recebida – sem
+  // prova" liam-se como newsletters falhadas. O editor corta lista a lista:
+  // a contagem por domínio dizia "normalizada" com listas mortas.
+  let listasEmSilencio: ListaSilencioAviso[] = [];
+  let reconquistas: ReconquistaAviso[] = [];
   try {
-    const { dominios, caixaCortada: cortadas } = saudeCaixa();
-    caixaCortada = cortadas.map((c) => {
-      const diarias = dominios.find((d) => d.dominio === c.dominio)?.diarias ?? [];
-      const marcas = [...new Set(diarias.map((id) => newsletterPorId(id)?.marca).filter(Boolean))];
-      return { marcas: marcas.length > 0 ? marcas.join(" / ") : c.dominio, desde: diaMes(c.desde) };
-    });
+    const v = vigilanciaListas();
+    listasEmSilencio = v.listas.map((l) => ({
+      nome: `${l.marca} ${l.nome}`,
+      nivel: l.nivel,
+      desde: diaMes(l.desde),
+      edicoesEmFalta: l.edicoesEmFalta,
+    }));
+    reconquistas = v.reconquistas.map((r) => ({
+      dia: diaMes(dataLocal(new Date(r.recebidoEm))),
+      assunto: r.assunto,
+      remetente: extrairNome(r.remetente) || r.remetente,
+      aberto: r.abertura === "aberto",
+      abertoAs: r.abertoEm ? horaLocal(new Date(r.abertoEm)) : null,
+    }));
   } catch {
-    caixaCortada = [];
+    listasEmSilencio = [];
+    reconquistas = [];
   }
 
   return (
     <Painel
       hoje={hoje}
       leitura={estadoLeitura()}
-      caixaCortada={caixaCortada}
+      listasEmSilencio={listasEmSilencio}
+      reconquistas={reconquistas}
       porClassificar={contarPorClassificar(7)}
       periodo={periodo}
       grelha={grelha}

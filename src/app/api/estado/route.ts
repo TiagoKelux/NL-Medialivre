@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 /**
  * O estado do monitor em detalhe: o mesmo 200/503 do /api/saude, mais o erro
  * da última leitura tal como veio e `caixa`/`caixaCortada` (os editores ainda
- * mandam as diárias?). Fica atrás da palavra-passe do painel — no Caddy só o
+ * mandam as diárias?) e `listasEmSilencio`/`reconquistas`/`aberturas` (e cada
+ * newsletter, uma a uma? os pixéis foram abertos?). Fica atrás da palavra-passe do painel — no Caddy só o
  * /api/saude está isento.
  */
 export function GET() {

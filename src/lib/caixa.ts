@@ -1,9 +1,14 @@
 import { db } from "./db.ts";
 import { NEWSLETTERS } from "../../config/newsletters.ts";
-import { esperadoNoDia } from "./calendario.ts";
+import { esperadoNoDia, newsletterDoRegisto } from "./calendario.ts";
+import { ehDiaEsperado } from "./classificacao.ts";
+import { extrairEndereco } from "./correspondencia.ts";
 import { dataEdicao } from "./edicao.ts";
+import { estadoAbertura, type EstadoAbertura } from "./abertura.ts";
+import { marcasDoEmail } from "./marcas.ts";
+import { eReconquista } from "./prova.ts";
 import { horaLimiteDe } from "./registos.ts";
-import { dataLocal, somarDias } from "./tempo.ts";
+import { dataLocal, paraIso, somarDias } from "./tempo.ts";
 import type { Newsletter } from "./tipos.ts";
 
 /**
@@ -136,4 +141,156 @@ export function saudeCaixa(agora: Date = new Date(), newsletters: Newsletter[] =
     }));
 
   return { dominios, caixaCortada };
+}
+
+// ── Listas em silêncio ─────────────────────────────────────────────────────
+
+/**
+ * O editor corta cada LISTA, não o domínio: depois de 6 envios seguidos sem
+ * abertura, aquela newsletter deixa de vir e as outras do mesmo endereço
+ * continuam. A contagem por domínio acima dizia "normalizada" com nove listas
+ * desses domínios mortas. Aqui conta-se, por newsletter, quantas edições
+ * esperadas (pelo calendário congelado de cada dia) passaram sem nada desde a
+ * última recebida.
+ *
+ * É só informação: não mexe em nenhum código 1–6. O "sem prova" desses dias
+ * continua a ser decidido pela prova de ausência (prova.ts).
+ */
+
+/** Edições esperadas seguidas sem nada a partir das quais se avisa. */
+export const EDICOES_PARA_AVISO = 2;
+
+/** A partir daqui a lista dá-se como cortada pelo editor. */
+export const EDICOES_PARA_CORTE = 4;
+
+export interface ListaEmSilencio {
+  newsletterId: string;
+  marca: string;
+  nome: string;
+  /** "aviso": a ficar em silêncio; "cortada": quase de certeza cortada pelo editor. */
+  nivel: "aviso" | "cortada";
+  /** Edições esperadas, com o limite já passado, sem nada recebido. */
+  edicoesEmFalta: number;
+  /** A primeira dessas edições (AAAA-MM-DD). */
+  desde: string;
+  /** ISO do último email recebido desta newsletter. */
+  ultimaEdicao: string;
+  /** O que fazer. */
+  acao: string;
+}
+
+/** Até onde se procuram emails de reconquista ("vamos deixar de enviar"). */
+export const DIAS_RECONQUISTA_RECENTE = 7;
+
+/**
+ * As campanhas de reativação do editor trazem `utm_campaign=reativacao1` (no
+ * primeiro dia de uma lista) ou `reativacao2` (~15–21 dias depois: a última
+ * oportunidade). Rede extra ao `eReconquista`, que olha para a estrutura.
+ */
+const REATIVACAO = /utm_campaign(?:=|%3D)reativacao\d*/i;
+
+export interface ReconquistaRecente {
+  emailId: number;
+  remetente: string;
+  assunto: string;
+  recebidoEm: string;
+  /** Se o pixel de abertura já respondeu (abertura.ts). */
+  abertura: EstadoAbertura;
+  abertoEm: string | null;
+}
+
+export interface VigilanciaListas {
+  listas: ListaEmSilencio[];
+  reconquistas: ReconquistaRecente[];
+}
+
+export function vigilanciaListas(agora: Date = new Date(), newsletters: Newsletter[] = NEWSLETTERS): VigilanciaListas {
+  const bd = db();
+  const ultimas = new Map(
+    (
+      bd
+        .prepare(
+          `SELECT newsletter_id AS id, MAX(recebido_em) AS r FROM emails
+            WHERE newsletter_id IS NOT NULL AND recebido_em <= ? GROUP BY newsletter_id`,
+        )
+        .all(paraIso(agora)) as { id: string; r: string }[]
+    ).map((l) => [l.id, l.r]),
+  );
+
+  const hoje = dataLocal(agora);
+  const listas: ListaEmSilencio[] = [];
+  for (const n of newsletters) {
+    if (!n.ativa || n.remetentes.length === 0) continue;
+    const ultima = ultimas.get(n.id);
+    // Nunca chegou nada: não há prova de que a caixa esteja inscrita.
+    if (!ultima) continue;
+    const emFalta: string[] = [];
+    let d = somarDias(dataEdicao(n, new Date(ultima)), 1);
+    for (let i = 0; d <= hoje && i < MAXIMO_DIAS; d = somarDias(d, 1), i++) {
+      // O calendário desse dia, não o de hoje (calendario.ts).
+      const nd = newsletterDoRegisto(n, d);
+      if (ehDiaEsperado(nd, d) && horaLimiteDe(nd, d) <= agora) emFalta.push(d);
+    }
+    if (emFalta.length < EDICOES_PARA_AVISO) continue;
+    const cortada = emFalta.length >= EDICOES_PARA_CORTE;
+    listas.push({
+      newsletterId: n.id,
+      marca: n.marca,
+      nome: n.nome,
+      nivel: cortada ? "cortada" : "aviso",
+      edicoesEmFalta: emFalta.length,
+      desde: emFalta[0],
+      ultimaEdicao: ultima,
+      acao: cortada
+        ? "reinscrever esta newsletter na caixa monitorizada"
+        : "confirmar no site do editor se saiu; se a próxima também não chegar, reinscrever esta newsletter",
+    });
+  }
+  listas.sort((a, b) => a.desde.localeCompare(b.desde) || a.newsletterId.localeCompare(b.newsletterId));
+
+  // Reconquistas: dos domínios das newsletters configuradas, nos últimos dias.
+  const dominios = new Set<string>();
+  for (const n of newsletters) {
+    for (const r of n.remetentes) {
+      const dom = dominioDe(r);
+      if (dom) dominios.add(dom);
+    }
+  }
+  const desde = paraIso(new Date(agora.getTime() - DIAS_RECONQUISTA_RECENTE * 86_400_000));
+  const candidatos = (
+    bd
+      .prepare(
+        `SELECT id, remetente, assunto, recebido_em, marcas FROM emails INDEXED BY idx_emails_identificacao
+          WHERE newsletter_id IS NULL AND recebido_em >= ? AND recebido_em <= ?
+          ORDER BY recebido_em DESC`,
+      )
+      .all(desde, paraIso(agora)) as {
+        id: number;
+        remetente: string;
+        assunto: string;
+        recebido_em: string;
+        marcas: string | null;
+      }[]
+  ).filter((e) => dominios.has(dominioDe(extrairEndereco(e.remetente))));
+
+  const corpo = bd.prepare(`SELECT corpo_html AS html FROM emails WHERE id = ?`);
+  const abertura = bd.prepare(`SELECT aberto_em AS a, abertura_falhas AS f FROM emails WHERE id = ?`);
+  const reconquistas: ReconquistaRecente[] = [];
+  for (const e of candidatos) {
+    const sim =
+      eReconquista(e.remetente, e.assunto, marcasDoEmail(e.id, e.marcas)) ||
+      REATIVACAO.test((corpo.get(e.id) as { html: string } | undefined)?.html ?? "");
+    if (!sim) continue;
+    const a = abertura.get(e.id) as { a: string | null; f: number };
+    reconquistas.push({
+      emailId: e.id,
+      remetente: e.remetente,
+      assunto: e.assunto,
+      recebidoEm: e.recebido_em,
+      abertura: estadoAbertura(a.a, a.f),
+      abertoEm: a.a,
+    });
+  }
+
+  return { listas, reconquistas };
 }
