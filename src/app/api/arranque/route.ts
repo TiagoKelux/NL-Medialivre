@@ -58,16 +58,14 @@ export async function POST() {
     { timezone: fuso },
   );
 
-  // §6 e §7.3 — de 5 em 5 minutos.
-  cron.schedule(
-    "*/5 * * * *",
-    () => {
-      void correrCiclo()
-        .then((passos) => passos.length && registar(passos.join(" · ")))
-        .catch((erro) => registar(`Falha no ciclo: ${(erro as Error).message}`));
-    },
-    { timezone: fuso },
-  );
+  // §6 e §7.3 — de 5 em 5 minutos. Sem fuso: um intervalo não precisa dele,
+  // e com Europe/Lisbon o node-cron saltou a hora repetida da mudança para a
+  // hora de inverno (25/10/2026, 00:55–01:55 UTC sem leituras).
+  cron.schedule("*/5 * * * *", () => {
+    void correrCiclo()
+      .then((passos) => passos.length && registar(passos.join(" · ")))
+      .catch((erro) => registar(`Falha no ciclo: ${(erro as Error).message}`));
+  });
 
   // Arranque: tapar buracos deixados por uma paragem do processo (critério 1).
   // As marcas que faltem (base antiga, configuração mudada) extraem-se já,

@@ -1,6 +1,5 @@
 import { db } from "./db.ts";
 import { NEWSLETTERS } from "../../config/newsletters.ts";
-import { PAGAS } from "../../config/pagas.ts";
 import { esperadoNoDia } from "./calendario.ts";
 import { dataEdicao } from "./edicao.ts";
 import { horaLimiteDe } from "./registos.ts";
@@ -66,7 +65,7 @@ const ehDiaria = (n: Newsletter) => n.periodicidade === "diaria" || n.periodicid
 export function saudeCaixa(agora: Date = new Date(), newsletters: Newsletter[] = NEWSLETTERS): SaudeCaixa {
   const porDominio = new Map<string, Newsletter[]>();
   for (const n of newsletters) {
-    if (!n.ativa || PAGAS.has(n.id) || n.remetentes.length === 0) continue;
+    if (!n.ativa || n.remetentes.length === 0) continue;
     for (const r of new Set(n.remetentes.map(dominioDe))) {
       if (!r) continue;
       const lista = porDominio.get(r) ?? [];

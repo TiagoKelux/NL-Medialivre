@@ -1,7 +1,6 @@
 import type { CodigoEstado, Newsletter } from "./tipos.ts";
 import { dataLocal as dataDe, diaMes, diaSemanaISO, horaLocal, minutosEntre, paraInstante, somarMinutos } from "./tempo.ts";
 import { feriado } from "./feriados.ts";
-import { PRAZO_ATRASO_MIN } from "./edicao.ts";
 import { hashConteudo, semelhancaArtigos } from "./conteudo.ts";
 
 /**
@@ -86,8 +85,6 @@ export interface Resultado {
    * não prova "conteúdo atualizado". Não muda o código.
    */
   semComparacao?: boolean;
-  /** Chegou, mas mais de PRAZO_ATRASO_MIN depois da hora prevista: é um 5. */
-  foraDePrazo?: boolean;
   /**
    * Hash diferente, mas a maioria dos artigos (Jaccard ≥ LIMIAR_ARTIGOS, < 1)
    * é a da edição anterior. Só aviso no detalhe: não muda o código.
@@ -213,28 +210,12 @@ export function classificar(ctx: Contexto): Resultado {
         ? ` O mesmo envio do editor chegou ${nrOcorrencias} vezes — conta como um.`
         : "";
 
-  // ── 5: chegou, mas mais de 6 h depois da hora prevista ──────────────────
-  // Até 6 h depois é "Atrasada"; depois disso a edição já não saiu no dia
-  // dela. O email prova que a caixa recebe, por isso fecha sem mais provas.
-  const prevista = paraInstante(ctx.dataPrevista, n.horaPrevista);
-  if (horaRecebida > somarMinutos(prevista, PRAZO_ATRASO_MIN)) {
-    const horas = Math.floor(minutosEntre(prevista, horaRecebida) / 60);
-    return {
-      codigo: 5,
-      horaRecebida,
-      atrasoMinutos,
-      nrOcorrencias: nrEnvios,
-      foraDePrazo: true,
-      detalhe:
-        `Chegou só às ${horaLocal(horaRecebida)}${diaSeOutro(ctx.dataPrevista, horaRecebida)}, ` +
-        `${horas} h depois da hora prevista (${n.horaPrevista}) — mais de ${PRAZO_ATRASO_MIN / 60} h → ` +
-        `Não Saiu (fora de prazo).${notaCaixa}`,
-    };
-  }
-
+  // Chegou depois do limite, por mais tarde que seja: saiu tarde (código 2).
+  // Um email que chegou nunca é "Não Saiu".
   const fraseJanela =
     atrasoMinutos > 0
-      ? `Recebida às ${horaLocal(horaRecebida)}, limite ${limite} → ${atrasoMinutos} min de atraso.`
+      ? `Recebida às ${horaLocal(horaRecebida)}${diaSeOutro(ctx.dataPrevista, horaRecebida)}, limite ${limite} → ` +
+        `saiu tarde (${duracao(atrasoMinutos)} de atraso).`
       : `Recebida às ${horaLocal(horaRecebida)}, limite ${limite} → dentro da janela.`;
 
   // Um corpo vazio dá sempre o mesmo hash; comparar com ele produziria código 4
@@ -339,6 +320,15 @@ function agruparEnvios(ordenadas: Ocorrencia[]): { envios: Ocorrencia[]; destino
     envios.push(o);
   }
   return { envios, destinos: outros.size > 0 ? [principal!, ...outros] : [] };
+}
+
+/** "45 min", "3 h 10 min", "2 d 4 h". */
+export function duracao(minutos: number): string {
+  if (minutos < 60) return `${minutos} min`;
+  const h = Math.floor(minutos / 60);
+  if (h < 24) return minutos % 60 ? `${h} h ${minutos % 60} min` : `${h} h`;
+  const d = Math.floor(h / 24);
+  return h % 24 ? `${d} d ${h % 24} h` : `${d} d`;
 }
 
 /** " de 11/10" quando o instante já é de outro dia local; senão "". */

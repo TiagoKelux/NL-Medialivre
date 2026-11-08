@@ -299,19 +299,18 @@ test("de ponta a ponta: duas edições do mesmo envio na base dão uma ocorrênc
   assert.equal(r.nr_ocorrencias, 1);
 });
 
-// ── 5. Prazo de 6 h ────────────────────────────────────────────────────────
+// ── 5. Regra do cliente (08/11): 30 min, depois "saiu tarde" ────────────────
 
-test("até 6 h depois da hora prevista é 'Atrasada'", () => {
+test("depois da janela de 30 min é 'Saiu Atrasada' (tarde)", () => {
   const r = exclusivos([{ recebidoEm: lisboa("2026-10-01", "11:30"), hash: "a" }]);
   assert.equal(r.codigo, 2);
-  assert.equal(r.atrasoMinutos, 270);
+  assert.match(r.detalhe, /saiu tarde/);
 });
 
-test("mais de 6 h depois da hora prevista é 'Não Saiu (fora de prazo)', no dia dela", () => {
+test("13 h depois continua a ser 'Saiu Atrasada' — um email que chegou nunca é 'Não Saiu'", () => {
   const r = exclusivos([{ recebidoEm: lisboa("2026-10-01", "19:00"), hash: "a" }]);
-  assert.equal(r.codigo, 5);
-  assert.equal(r.foraDePrazo, true);
-  assert.match(r.detalhe, /Chegou só às 19:00, 13 h depois da hora prevista \(06:00\).*Não Saiu \(fora de prazo\)/);
+  assert.equal(r.codigo, 2);
+  assert.match(r.detalhe, /Recebida às 19:00.*saiu tarde/);
   assert.equal(dataEdicao(nl("cm-exclusivos"), lisboa("2026-10-01", "19:00")), "2026-10-01", "não passa para o dia seguinte");
 });
 
@@ -329,33 +328,51 @@ test("a das 21:00 que chega às 00:30 do dia seguinte é 'Atrasada' no seu dia",
   assert.equal(r.codigo, 2);
 });
 
-test("de ponta a ponta: fora de prazo fecha 'Não Saiu' e não contamina o dia seguinte", () => {
+test("de ponta a ponta: chegou 13 h depois → 'Saiu Atrasada', e não contamina o dia seguinte", () => {
   const dia = "2026-08-24";
   registos.gerarDia(dia);
   registos.gerarDia("2026-08-25");
   gravar(CM("Exclusivos"), "atrasada 13 h", lisboa(dia, "19:00"), "cm-exclusivos");
   leituraBoa();
-  assert.deepEqual(estado("cm-exclusivos", dia), NAO_SAIU);
-  assert.match(registo("cm-exclusivos", dia).detalhe, /fora de prazo/);
+  assert.equal(registo("cm-exclusivos", dia).codigo_estado, 2);
   assert.equal(registo("cm-exclusivos", "2026-08-25").nr_ocorrencias, 0);
 });
 
-test("entre o limite e as 6 h: 'Em atraso', nunca 'Não Saiu'", () => {
+test("semanal que sai 3 dias depois: o 'Não Saiu' passa a 'Saiu Atrasada' retroativamente", () => {
+  // flash-weekend: à quinta, 07:00.
+  const n = nl("flash-weekend");
+  assert.deepEqual(n.diasSemana, [4]);
+  const quinta = "2026-08-27";
+  registos.gerarDia(quinta);
+  registos.gerarDia("2026-08-28");
+  registos.gerarDia("2026-08-29");
+  registos.gerarDia("2026-08-30");
+  // Chega no domingo (3 dias depois): não é dia de envio, conta para a de quinta.
+  gravar("FLASH! Weekend <info@news.flash.pt>", "fim de semana", lisboa("2026-08-30", "10:00"), "flash-weekend");
+  registos.reavaliar("flash-weekend", quinta);
+  const r = registo("flash-weekend", quinta);
+  assert.equal(r.codigo_estado, 2);
+  assert.match(r.detalhe, /Recebida às 10:00 de 30\/08.*saiu tarde/);
+  // Mas se a de quinta tivesse chegado, o de domingo não a tornava duplicada.
+  const quinta2 = "2026-09-03";
+  registos.gerarDia(quinta2);
+  for (const d of ["2026-09-04", "2026-09-05", "2026-09-06"]) registos.gerarDia(d);
+  gravar("FLASH! Weekend <info@news.flash.pt>", "a horas", lisboa(quinta2, "07:05"), "flash-weekend");
+  gravar("FLASH! Weekend <info@news.flash.pt>", "extra", lisboa("2026-09-06", "10:00"), "flash-weekend");
+  registos.reavaliar("flash-weekend", quinta2);
+  assert.equal(registo("flash-weekend", quinta2).codigo_estado, 1);
+});
+
+test("depois do limite (+30 min) e da margem, uma leitura que cobre o dia fecha", () => {
   const dia = "2026-08-26";
   registos.gerarDia(dia);
-  const reg = registo("cm-exclusivos", dia);
-  assert.equal(registos.emAtraso(reg, lisboa(dia, "09:00")), true);
-  assert.equal(registos.emAtraso(reg, lisboa(dia, "06:30")), false, "antes do limite é 'A aguardar'");
-  assert.equal(registos.emAtraso(reg, lisboa(dia, "12:01")), false, "depois do prazo já não está em atraso");
-  assert.equal(
-    apresentacao.variante({
-      codigo: 5, fechado: false, limitePassou: true, emAtraso: true, semEmail: false, paga: false, ressalva: null,
-    }),
-    "em-atraso",
-  );
-  // Uma leitura às 09:00 não fecha: ainda pode chegar.
-  registos.fecharVencidos({ ok: lisboa(dia, "09:00"), desde: lisboa("2026-08-01", "00:00") });
+  // Antes do limite (06:30) + margem: não fecha.
+  registos.fecharVencidos({ ok: lisboa(dia, "06:35"), desde: lisboa("2026-08-01", "00:00") });
   assert.equal(registo("cm-exclusivos", dia).fechado, 0);
+  assert.equal(
+    apresentacao.variante({ codigo: 5, fechado: false, limitePassou: true, semEmail: false, paga: false, ressalva: null }),
+    "por-confirmar",
+  );
 });
 
 // ── 3b. Rede de segurança da campanha ──────────────────────────────────────

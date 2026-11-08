@@ -5,16 +5,21 @@ import { processarCorpo } from "./conteudo.ts";
 import { esquecerCampanhas, extrairMarcas, garantirMarcas, marcasDoEmail, type Marcas } from "./marcas.ts";
 import { podeSerDe } from "./prova.ts";
 import { marcarAbertos } from "./abertura.ts";
-import { PAGAS } from "../../config/pagas.ts";
 import { reavaliar, registoDe } from "./registos.ts";
-import { dataEdicao } from "./edicao.ts";
+import { dataEdicao, edicaoAnteriorEmFalta } from "./edicao.ts";
 import { NEWSLETTERS, newsletterPorId } from "../../config/newsletters.ts";
 import { paraIso, somarDias } from "./tempo.ts";
 import type { Newsletter } from "./tipos.ts";
 
-/** Chave do registo a reavaliar: a newsletter e o dia da edição do email. */
-function chave(n: Newsletter, recebido: Date): string {
-  return `${n.id}|${dataEdicao(n, recebido)}`;
+/**
+ * Chaves dos registos a reavaliar: a newsletter e o dia da edição do email e,
+ * se esse dia não tem edição própria, a edição anterior — o email pode ser
+ * ela a sair tarde (`emailsDaEdicao`).
+ */
+function chaves(n: Newsletter, recebido: Date): string[] {
+  const dia = dataEdicao(n, recebido);
+  const anterior = edicaoAnteriorEmFalta(n, dia);
+  return anterior ? [`${n.id}|${dia}`, `${n.id}|${anterior}`] : [`${n.id}|${dia}`];
 }
 
 /**
@@ -84,9 +89,9 @@ export function reclassificar(): Set<string> {
     esquecerCampanhas();
     const recebido = new Date(e.recebido_em);
     const antiga = e.newsletter_id ? newsletterPorId(e.newsletter_id) : undefined;
-    if (antiga) afetados.add(chave(antiga, recebido));
+    if (antiga) for (const c of chaves(antiga, recebido)) afetados.add(c);
     const nova = novo ? newsletterPorId(novo) : undefined;
-    if (nova) afetados.add(chave(nova, recebido));
+    if (nova) for (const c of chaves(nova, recebido)) afetados.add(c);
     // Deixou de contar para uma newsletter: pode travar o "Não Saiu" de outras.
     if (!novo) for (const c of plausiveis(e.remetente, e.assunto, m, recebido)) afetados.add(c);
   }
@@ -120,7 +125,7 @@ async function leitorPadrao(): Promise<LeitorCaixa> {
 function plausiveis(remetente: string, assunto: string, marcas: Marcas, recebido: Date): string[] {
   const chaves: string[] = [];
   for (const n of NEWSLETTERS) {
-    if (!n.ativa || PAGAS.has(n.id) || !podeSerDe(n, remetente, assunto, marcas)) continue;
+    if (!n.ativa || !podeSerDe(n, remetente, assunto, marcas)) continue;
     const dia = dataEdicao(n, recebido);
     if (registoDe(n.id, dia)) chaves.push(`${n.id}|${dia}`);
   }
@@ -195,7 +200,7 @@ export async function recolher(horas = 24, ler?: LeitorCaixa): Promise<ResumoRec
       novos.push(html);
       if (n) {
         resumo.atribuidas++;
-        afetados.add(chave(n, new Date(m.receivedDateTime)));
+        for (const c of chaves(n, new Date(m.receivedDateTime))) afetados.add(c);
       } else {
         for (const c of plausiveis(remetente, assunto, marcas, new Date(m.receivedDateTime))) afetados.add(c);
       }

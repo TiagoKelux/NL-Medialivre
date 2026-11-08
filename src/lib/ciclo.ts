@@ -1,5 +1,5 @@
 import { db } from "./db.ts";
-import { fecharVencidos, garantirDias } from "./registos.ts";
+import { fecharVencidos, garantirDias, reverNaoSaiu } from "./registos.ts";
 import { intervaloDeBusca } from "./edicao.ts";
 import { temToken } from "./graph/token.ts";
 import { temGmail } from "./gmail/config.ts";
@@ -114,6 +114,8 @@ async function ciclo(): Promise<string[]> {
     desde: coberta > limiteAntigo ? coberta : limiteAntigo,
   });
   if (fechados > 0) passos.unshift(`${fechados} registo(s) fechado(s)`);
+  const revistos = reverNaoSaiu();
+  if (revistos > 0) passos.push(`${revistos} "Não Saiu" revisto(s)`);
 
   // Os editores ainda mandam as diárias? Escreve no log só quando muda.
   await vigiarCaixa();

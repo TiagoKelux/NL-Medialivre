@@ -12,6 +12,7 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { inflateRawSync } from "node:zlib";
+import { TOLERANCIA_MIN } from "../src/lib/edicao.ts";
 
 // ── Leitor de ZIP, sem dependências ────────────────────────────────────────
 // Um .xlsx é um zip. Percorre-se o directório central, que é o único sítio
@@ -130,17 +131,17 @@ function lerHora(bruto: string): Janela {
     const min = m[2] ? Number(m[2]) : 0;
     return h * 60 + min;
   });
-  if (encontradas.length === 0) return { hora: null, tolerancia: 60 };
+  if (encontradas.length === 0) return { hora: null, tolerancia: TOLERANCIA_MIN };
 
   const emTexto = (t: number) =>
     `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
 
   const cedo = Math.min(...encontradas);
   const tarde = Math.max(...encontradas);
-  if (cedo === tarde) return { hora: emTexto(cedo), tolerancia: 60 };
+  if (cedo === tarde) return { hora: emTexto(cedo), tolerancia: TOLERANCIA_MIN };
   return {
     hora: emTexto(cedo),
-    tolerancia: tarde - cedo + 60,
+    tolerancia: tarde - cedo + TOLERANCIA_MIN,
     nota: `horário em aberto no Excel ("${bruto.trim()}"); tolerância alargada até ${emTexto(tarde)} + 1 h`,
   };
 }

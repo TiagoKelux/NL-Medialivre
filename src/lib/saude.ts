@@ -33,7 +33,10 @@ export interface EstadoCompleto {
 function leituraAgora(agora: Date) {
   const { ok, falha } = estadoLeitura();
   const minutos = ok ? Math.floor((agora.getTime() - new Date(ok).getTime()) / 60_000) : null;
-  const saudavel = !falha && minutos !== null && minutos <= MAXIMO_MIN;
+  // Uma falha isolada do Gmail ("Connection not available") recupera no ciclo
+  // seguinte e não é o monitor parado: só conta o tempo desde a última
+  // leitura boa. A falha continua a aparecer em `falha` e no painel.
+  const saudavel = minutos !== null && minutos <= MAXIMO_MIN;
   return { ok, falha, minutos, saudavel };
 }
 

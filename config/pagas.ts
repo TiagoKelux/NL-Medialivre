@@ -1,4 +1,8 @@
 /**
+ * Só informativo (a estrela ★ no painel): desde 05/11/2026 a caixa tem acesso
+ * premium por um ano e as pagas seguem as mesmas regras que as outras. Até
+ * aí eram um "grupo de controlo" — isso acabou.
+ *
  * Newsletters pagas: as que, na coluna "Segmento" da folha "Horário" do
  * Excel, só vão para Assinantes (incluindo Premium Plus) — sem Registados.
  * A Record Premium NÃO está aqui: vai também para Registados, e a caixa

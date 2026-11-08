@@ -27,7 +27,6 @@ const { processarCorpo } = conteudo;
 const { datasNoEmail } = await import("../src/lib/datas.ts");
 const prova = await import("../src/lib/prova.ts");
 const apresentacao = await import("../src/lib/apresentacao.ts");
-const { PAGAS } = await import("../config/pagas.ts");
 const leitura = await import("../src/lib/leitura.ts");
 
 const nl = (id: string) => {
@@ -494,10 +493,10 @@ test("positivo: 'Não Saiu' só fecha com uma leitura feita depois do limite, e 
   // remetente, chegou depois do limite — a caixa estava a receber do editor.
   gravarEmail(CM("Exclusivos"), "véspera", lisboa("2026-09-30", "06:05"), "cm-exclusivos");
   gravarEmail(CM("Bom dia"), "manchete", lisboa(dia, "10:00"), "cm-bom-dia");
-  const limite = lisboa(dia, "07:00"); // cm-exclusivos
+  const limite = lisboa(dia, "06:30"); // cm-exclusivos: 06:00 + 30 min
 
   // Última leitura antes do limite (PC desligado de manhã): não fecha.
-  registos.fecharVencidos({ ok: lisboa(dia, "06:50"), desde: lisboa("2026-09-20", "00:00") });
+  registos.fecharVencidos({ ok: lisboa(dia, "06:20"), desde: lisboa("2026-09-20", "00:00") });
   assert.equal(registo("cm-exclusivos", dia).fechado, 0);
 
   // Leitura logo a seguir ao limite, dentro da margem: ainda não fecha.
@@ -508,13 +507,9 @@ test("positivo: 'Não Saiu' só fecha com uma leitura feita depois do limite, e 
   registos.fecharVencidos({ ok: lisboa(dia, "09:00"), desde: lisboa(dia, "08:00") });
   assert.equal(registo("cm-exclusivos", dia).fechado, 0);
 
-  // Leitura boa depois do limite, mas antes das 6 h do prazo (12:00): ainda
-  // pode chegar como "Atrasada" — não fecha.
-  registos.fecharVencidos({ ok: lisboa(dia, "12:00"), desde: lisboa("2026-09-20", "00:00") });
-  assert.equal(registo("cm-exclusivos", dia).fechado, 0);
-
-  // Leitura boa, depois do prazo e da margem, a cobrir o dia: fecha como 5.
-  registos.fecharVencidos({ ok: lisboa(dia, "12:15"), desde: lisboa("2026-09-20", "00:00") });
+  // Regra do cliente: leitura boa depois do limite (+30 min) e da margem, a
+  // cobrir o dia: fecha logo como 5 — já não há prazo de 6 h.
+  registos.fecharVencidos({ ok: lisboa(dia, "06:45"), desde: lisboa("2026-09-20", "00:00") });
   assert.deepEqual(estado("cm-exclusivos", dia), NAO_SAIU);
   assert.match(registo("cm-exclusivos", dia).detalhe, /→ Não Saiu/);
 });
@@ -524,7 +519,8 @@ test("email que chega depois de fechado corrige o 'Não Saiu'", () => {
   gravarEmail(CM("Exclusivos"), "x", lisboa(dia, "07:20"), "cm-exclusivos");
   const r = registos.reavaliar("cm-exclusivos", dia);
   assert.equal(r?.codigo_estado, 2);
-  assert.equal(r?.atraso_minutos, 20);
+  assert.equal(r?.atraso_minutos, 50);
+  assert.match(r!.detalhe, /saiu tarde \(50 min de atraso\)/);
 });
 
 // ── Prova de ausência: sem ela não há "Não Saiu" ───────────────────────────
@@ -568,7 +564,7 @@ test("(b) newsletter gratuita sem remetente configurado: nunca 'Não Saiu', nem 
 
   // As da configuração que estejam nesse caso: depois de uma leitura boa,
   // nenhuma fica "Não Saiu" e o detalhe nunca o afirma.
-  const livres = NEWSLETTERS.filter((n) => n.ativa && !estaConfigurada(n) && !PAGAS.has(n.id));
+  const livres = NEWSLETTERS.filter((n) => n.ativa && !estaConfigurada(n));
   for (const n of livres) {
     const r = registo(n.id, "2026-10-06");
     if (!r || r.codigo_estado !== 5) continue;
@@ -597,24 +593,32 @@ test("(c) newsletter que nunca chegou à caixa antes do dia não dá 'Não Saiu'
   leituraBoa();
   assert.deepEqual(estado("flash-mundo", "2026-10-02"), SEM_PROVA);
   assert.match(registo("flash-mundo", "2026-10-02").detalhe, /primeiro email desta newsletter na caixa é de 03\/10/);
-  assert.deepEqual(estado("flash-mundo", "2026-10-04"), NAO_SAIU);
+  // A 04/10 a inscrição já está provada (os dias seguintes, se também
+  // faltarem, tiram a prova pela regra das edições seguidas — não por isto).
+  assert.doesNotMatch(registo("flash-mundo", "2026-10-04").detalhe, /nunca chegou|primeiro email/);
 });
 
-test("pagas: grupo de controlo — fecham e mostram 'Não Saiu', isentas das outras provas", () => {
+test("pagas: já não são grupo de controlo — mesmas provas que as outras (acesso premium desde 05/11)", () => {
   const dia = "2026-10-07";
   registos.gerarDia(dia);
-  // Nem o marketing da própria marca, nem a falta de canário, nem nunca ter
-  // chegado nada travam o 5.
-  gravarEmail("Record Premium <info@assinaturas.jornalrecord.pt>", "Assine o Record Premium Plus", lisboa(dia, "07:10"), null);
-  assert.deepEqual(prova.motivosSemProva(nl("record-premium-plus"), dia, lisboa(dia, "08:00")), []);
+  // Nunca chegou nada da Premium Plus antes deste dia: sem prova de inscrição,
+  // nunca "Não Saiu".
+  assert.ok(prova.motivosSemProva(nl("record-premium-plus"), dia, lisboa(dia, "10:00")).length > 0);
   leituraBoa();
-  assert.deepEqual(estado("record-premium-plus", dia), NAO_SAIU);
-  assert.match(registo("record-premium-plus", dia).detalhe, /→ Não Saiu.*Grupo de controlo/);
-  // O painel e o Excel mostram 5, mesmo sem remetente configurado.
+  assert.deepEqual(estado("record-premium-plus", dia), SEM_PROVA);
+  assert.doesNotMatch(registo("record-premium-plus", dia).detalhe, /controlo/);
+  // Uma paga sem remetente é "Não assinada no email", como as outras.
   const f = { codigo: 5 as const, fechado: true, limitePassou: false, semEmail: true, paga: true, ressalva: null };
-  assert.equal(apresentacao.variante(f), "controlo");
-  assert.equal(apresentacao.codigoMostrado(f), 5);
-  assert.equal(apresentacao.ROTULO.controlo.texto, "Não Saiu (controlo)");
+  assert.equal(apresentacao.variante(f), "sem-email");
+  assert.equal(apresentacao.codigoMostrado(f), null);
+});
+
+test("pagas reais (05/11): a edição da Premium Plus é reconhecida e conta como Saiu", () => {
+  const corpo = '<a href="https://www.record.pt/%3Futm_campaign=premium-plus%26utm_medium=email%26utm_edition=2026110509">x</a>';
+  assert.equal(corresponder("Record Premium Plus <info@assinaturas.jornalrecord.pt>", "Paulo Fonseca já manda", corpo)?.id, "record-premium-plus");
+  // A Record Premium (sem -plus) continua na dela.
+  const premium = '<a href="https://www.record.pt/%3Futm_campaign=premium%26utm_medium=email">x</a>';
+  assert.equal(corresponder("Record Premium <info@assinaturas.jornalrecord.pt>", "Crónica", premium)?.id, "record-premium");
 });
 
 test("(d) intervalo sem leitura na janela: não fecha; a cobertura só encadeia sem buracos", () => {
@@ -678,10 +682,12 @@ test("3 edições diárias seguidas em falta: a terceira já não é 'Não Saiu'
     gravarEmail(CM("Bom dia"), "canário", lisboa(seguinte, "10:00"), "cm-bom-dia");
   }
   leituraBoa();
-  assert.deepEqual(estado("cm-boa-tarde", "2026-10-10"), NAO_SAIU);
-  assert.deepEqual(estado("cm-boa-tarde", "2026-10-11"), NAO_SAIU);
-  assert.deepEqual(estado("cm-boa-tarde", "2026-10-12"), SEM_PROVA);
-  assert.match(registo("cm-boa-tarde", "2026-10-12").detalhe, /3\.ª edição seguida/);
+  // As três fazem a mesma série: nenhuma é "Não Saiu" — também as duas
+  // primeiras, que sozinhas pareciam (o primeiro dia de um corte da caixa).
+  for (const d of ["2026-10-10", "2026-10-11", "2026-10-12"]) {
+    assert.deepEqual(estado("cm-boa-tarde", d), SEM_PROVA, d);
+    assert.match(registo("cm-boa-tarde", d).detalhe, /3 edições seguidas/);
+  }
 });
 
 test("'Não Saiu' já fechado volta a abrir se aparecer um email que pode ser dela", () => {
@@ -689,6 +695,8 @@ test("'Não Saiu' já fechado volta a abrir se aparecer um email que pode ser de
   registos.gerarDia(dia);
   gravarEmail("Record Geral <info@news.jornalrecord.pt>", "x", lisboa("2026-10-07", "09:00"), "record-geral");
   gravarEmail("Record Sporting <info@news.jornalrecord.pt>", "canário", lisboa(dia, "11:00"), "record-sporting");
+  // O dia seguinte chegou: 08/10 é uma falta isolada, não um corte.
+  gravarEmail("Record Geral <info@news.jornalrecord.pt>", "y", lisboa("2026-10-09", "09:00"), "record-geral");
   leituraBoa();
   assert.deepEqual(estado("record-geral", dia), NAO_SAIU);
   gravarEmail("Record Geral <info@news.jornalrecord.pt>", "Bom dia", lisboa(dia, "09:05"), null);
@@ -712,14 +720,15 @@ test("primeira edição, sem anterior comparável: 'Saiu (sem termo de comparaç
   assert.equal(apresentacao.ROTULO["sem-comparacao"].texto, "Saiu (sem termo de comparação)");
 });
 
-test("invariante: nenhum 'Não Saiu' fechado de uma gratuita sem prova de ausência", () => {
+test("invariante: nenhum 'Não Saiu' fechado sem prova de ausência", () => {
+  // O ciclo revê os "Não Saiu" recentes; aqui, todos.
+  registos.reverNaoSaiu(400);
   const todos = db()
     .prepare(`SELECT newsletter_id, data_prevista, hora_limite, detalhe FROM registos WHERE codigo_estado = 5 AND fechado = 1`)
     .all() as { newsletter_id: string; data_prevista: string; hora_limite: string; detalhe: string }[];
   assert.ok(todos.length > 0);
   for (const r of todos) {
     const n = nl(r.newsletter_id);
-    if (PAGAS.has(n.id)) continue;
     assert.deepEqual(prova.motivosSemProva(n, r.data_prevista, new Date(r.hora_limite)), [], `${n.id} ${r.data_prevista}`);
   }
   // E nenhum detalhe em aberto afirma "Não Saiu".

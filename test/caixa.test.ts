@@ -280,10 +280,12 @@ test("/api/estado: caixaCortada vem como campo extra e não mexe no 200/503", as
   assert.ok(r.corpo.caixaCortada!.some((c) => c.dominio === "news.jornalrecord.pt"));
   assert.equal(respostaSaude().status, 200);
 
-  // Uma falha de leitura dá 503, com ou sem caixa cortada; o erro em bruto só aqui.
+  // Uma falha isolada (o Gmail, "Connection not available") com uma leitura
+  // boa há menos de 15 min: continua 200 — não é o monitor parado. O erro em
+  // bruto aparece aqui.
   leitura.registarLeitura(new Error("IMAP em baixo"));
   r = estadoCompleto();
-  assert.equal(r.status, 503);
+  assert.equal(r.status, 200);
   assert.equal(r.corpo.falha, "IMAP em baixo");
 });
 
@@ -291,9 +293,10 @@ test("/api/saude é público: só o essencial, com o mesmo 200/503", async () =>
   const { respostaSaude } = await import("../src/lib/saude.ts");
   const chaves = ["falha", "minutosDesdeLeitura", "saudavel", "ultimaLeitura"];
 
-  // Falha (do teste anterior): 503, código genérico, nada do erro em bruto nem da caixa.
+  // Falha: código genérico, nada do erro em bruto nem da caixa. Com a última
+  // leitura boa há mais de 15 min: 503.
   leitura.registarLeitura(new Error("IMAP em baixo: user@exemplo.pt 10.0.0.1"));
-  let r = respostaSaude();
+  let r = respostaSaude(new Date(Date.now() + 20 * 60_000));
   assert.equal(r.status, 503);
   assert.deepEqual(Object.keys(r.corpo).sort(), chaves);
   assert.equal(r.corpo.falha, "leitura_falhou");

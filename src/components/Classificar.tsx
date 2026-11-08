@@ -237,17 +237,12 @@ export default function Classificar({ dias, emails, opcoes, estado, regras, excl
     if (r.ok) iniciar(() => router.refresh());
   }
 
-  // Por configurar primeiro (as pagas são o grupo de controlo e ficam no fim).
+  // Por configurar primeiro.
   const estadoOrdenado = useMemo(
-    () =>
-      [...estado].sort(
-        (a, b) =>
-          Number(a.configurada || a.paga) - Number(b.configurada || b.paga) ||
-          Number(a.paga) - Number(b.paga),
-      ),
+    () => [...estado].sort((a, b) => Number(a.configurada) - Number(b.configurada)),
     [estado],
   );
-  const porConfigurar = estado.filter((s) => !s.configurada && !s.paga).length;
+  const porConfigurar = estado.filter((s) => !s.configurada).length;
   const nuncaChegou = estado.filter((s) => s.configurada && !s.ultima).length;
 
   return (
@@ -323,8 +318,6 @@ export default function Classificar({ dias, emails, opcoes, estado, regras, excl
                       <span className="pastilha bom">
                         Configurada{s.origem === "painel" ? " no painel" : s.origem === "ambos" ? " + painel" : ""}
                       </span>
-                    ) : s.paga ? (
-                      <span className="pastilha neutra">Paga · controlo</span>
                     ) : (
                       <span className="pastilha mau">Por configurar</span>
                     )}

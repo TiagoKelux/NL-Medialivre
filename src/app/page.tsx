@@ -66,7 +66,6 @@ export default async function Pagina({
       detalhe: l.detalhe,
       fechado: l.fechado === 1,
       limitePassou: l.limite_passou,
-      emAtraso: l.em_atraso,
       periodicidade: l.periodicidade,
       diasSemana: l.dias_semana,
       temConteudo: l.tem_conteudo,

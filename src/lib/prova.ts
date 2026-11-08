@@ -1,12 +1,11 @@
 import { db } from "./db.ts";
 import { estaConfigurada } from "../../config/newsletters.ts";
-import { PAGAS } from "../../config/pagas.ts";
 import { ehDiaEsperado } from "./classificacao.ts";
 import { newsletterDoRegisto } from "./calendario.ts";
 import { eNaoEdicaoDoEditor, extrairEndereco, extrairNome, naoEEdicao, normalizarAssunto } from "./correspondencia.ts";
 import { lerCampanhas, marcasDoEmail, type Campanhas, type Marcas } from "./marcas.ts";
 import { dataEdicao, intervaloDeBusca } from "./edicao.ts";
-import { dataLocal, diaMes, horaLocal, paraIso, somarDias } from "./tempo.ts";
+import { dataLocal, diaMes, horaLocal, paraInstante, paraIso, somarDias } from "./tempo.ts";
 import type { Newsletter } from "./tipos.ts";
 
 /**
@@ -207,6 +206,11 @@ interface EmailLeve {
   marcas: string | null;
 }
 
+/** A hora limite de um dia (sem importar registos.ts, que importa este ficheiro). */
+function horaLimiteSimples(n: Newsletter, data: string): Date {
+  return new Date(paraInstante(data, n.horaPrevista).getTime() + n.toleranciaMinutos * 60_000);
+}
+
 /** Houve algum email desta newsletter na edição deste dia? */
 function temEdicao(n: Newsletter, data: string): boolean {
   const { inicio, fim } = intervaloDeBusca(data);
@@ -234,17 +238,17 @@ function temEdicao(n: Newsletter, data: string): boolean {
  *   5. nenhum email de reconquista do mesmo domínio nos 30 dias anteriores
  *      — o editor avisou que ia deixar de enviar. Reconhecido pela estrutura
  *      (`eReconquista`), não só pelo assunto;
- *   6. menos de 3 edições seguidas em falta (2 nas semanais e mensais) —
- *      silêncio prolongado é mais provavelmente a caixa cortada do que a
- *      newsletter parada, e não se distingue.
+ *   6. menos de 3 edições seguidas em falta (2 nas semanais e mensais),
+ *      contando para trás E para a frente — silêncio prolongado é mais
+ *      provavelmente a caixa cortada do que a newsletter parada, e não se
+ *      distingue. Para a frente: o primeiro dia de um corte parece um "Não
+ *      Saiu" isolado; quando faltam as seguintes, deixa de o ser (o ciclo
+ *      revê os "Não Saiu" recentes, `reverNaoSaiu`).
  *
- * As pagas (`config/pagas.ts`) ficam isentas de todas: a caixa não está
- * inscrita nelas de propósito, sabe-se que não chegam, e o 5 delas é o grupo
- * de controlo que mostra que o motor deteta ausências. A prova de leitura
- * continua a aplicar-se.
+ * As pagas seguem as mesmas regras: desde 05/11/2026 a caixa é assinante
+ * (acesso premium por um ano), deixaram de ser um grupo de controlo.
  */
 export function motivosSemProva(n: Newsletter, data: string, horaLimite: Date): string[] {
-  if (PAGAS.has(n.id)) return [];
   const motivos: string[] = [];
   const bd = db();
 
@@ -342,7 +346,8 @@ export function motivosSemProva(n: Newsletter, data: string, horaLimite: Date): 
     }
   }
 
-  // 6. Edições seguidas em falta, contando com esta.
+  // 6. Edições seguidas em falta, contando com esta: para trás e, até ao
+  // último dia cujo limite já passou, para a frente.
   const maximo = maximoSeguidas(n);
   let seguidas = 1;
   for (let d = somarDias(data, -1), i = 0; seguidas < maximo && i < 62; d = somarDias(d, -1), i++) {
@@ -352,9 +357,20 @@ export function motivosSemProva(n: Newsletter, data: string, horaLimite: Date): 
     if (temEdicao(nd, d)) break;
     seguidas++;
   }
+  const agora = new Date();
+  const existe = bd.prepare(`SELECT 1 FROM registos WHERE newsletter_id = ? AND data_prevista = ?`);
+  for (let d = somarDias(data, 1), i = 0; seguidas < maximo && i < 62; d = somarDias(d, 1), i++) {
+    // Só os dias que o monitor já gerou: um dia sem registo não foi observado.
+    if (!existe.get(n.id, d)) break;
+    const nd = newsletterDoRegisto(n, d);
+    if (horaLimiteSimples(nd, d) > agora) break;
+    if (!ehDiaEsperado(nd, d)) continue;
+    if (temEdicao(nd, d)) break;
+    seguidas++;
+  }
   if (seguidas >= maximo) {
     motivos.push(
-      `é a ${seguidas}.ª edição seguida sem nada recebido — silêncio prolongado não distingue ` +
+      `faz parte de ${seguidas} edições seguidas sem nada recebido — silêncio prolongado não distingue ` +
         `"não saiu" de "a caixa deixou de a receber"`,
     );
   }

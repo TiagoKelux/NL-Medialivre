@@ -26,7 +26,6 @@ interface Cadencia {
   /**
    * A newsletter ainda não reconhece os seus emails (sem remetente
    * configurado). Um "Não Saiu" nela não quer dizer nada — mostra-se a preto.
-   * Não se aplica às pagas, que são o grupo de controlo (ver apresentacao.ts).
    */
   semEmail: boolean;
   /** Só para assinantes (coluna "Segmento" do Excel) — leva uma estrela. */
@@ -47,7 +46,6 @@ export interface LinhaDia extends Cadencia {
   detalhe: string;
   fechado: boolean;
   limitePassou: boolean;
-  emAtraso: boolean;
   temConteudo: boolean;
   ressalva: Ressalva | null;
 }
@@ -68,7 +66,6 @@ export interface CelulaMatriz {
   detalhe: string;
   fechado: boolean;
   limitePassou: boolean;
-  emAtraso: boolean;
   temConteudo: boolean;
   ressalva: Ressalva | null;
 }
@@ -580,7 +577,7 @@ export default function Painel({ hoje, leitura, caixaCortada, porClassificar, pe
                         </td>
                       )}
                       <td>
-                        <Estado codigo={l.codigo} variante={variante({ codigo: l.codigo, fechado: l.fechado, limitePassou: l.limitePassou, emAtraso: l.emAtraso, semEmail: l.semEmail, paga: l.paga, ressalva: l.ressalva })} />
+                        <Estado codigo={l.codigo} variante={variante({ codigo: l.codigo, fechado: l.fechado, limitePassou: l.limitePassou, semEmail: l.semEmail, paga: l.paga, ressalva: l.ressalva })} />
                       </td>
                     </tr>
                   );
@@ -641,7 +638,7 @@ export default function Painel({ hoje, leitura, caixaCortada, porClassificar, pe
                             </td>
                           );
                         }
-                        const v = variante({ codigo: c.codigo, fechado: c.fechado, limitePassou: c.limitePassou, emAtraso: c.emAtraso, semEmail: l.semEmail, paga: l.paga, ressalva: c.ressalva });
+                        const v = variante({ codigo: c.codigo, fechado: c.fechado, limitePassou: c.limitePassou, semEmail: l.semEmail, paga: l.paga, ressalva: c.ressalva });
                         const designacao = v ? ROTULO[v].texto : DESIGNACOES[c.codigo];
                         return (
                           <td key={chave} className={borda}>
@@ -759,9 +756,7 @@ export default function Painel({ hoje, leitura, caixaCortada, porClassificar, pe
         {([1, 2, 3, 4, 5, 6] as CodigoEstado[]).map((c) => (
           <Estado key={c} codigo={c} />
         ))}
-        <Estado codigo={5} variante="controlo" />
         <Estado codigo={5} variante="aguarda" />
-        <Estado codigo={5} variante="em-atraso" />
         <Estado codigo={5} variante="por-confirmar" />
         <Estado codigo={5} variante="sem-prova" />
         <Estado codigo={5} variante="sem-email" />
