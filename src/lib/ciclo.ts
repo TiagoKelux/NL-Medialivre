@@ -5,7 +5,7 @@ import { temToken } from "./graph/token.ts";
 import { temGmail } from "./gmail/config.ts";
 import { coberturaDesde, registarLeitura } from "./leitura.ts";
 import { dataLocal } from "./tempo.ts";
-import { sinalDeVida, vigiarCaixa } from "./vigia.ts";
+import { sinalDeVida, vigiarCaixa, vigiarListas } from "./vigia.ts";
 
 /**
  * Janela mínima de cada leitura: uma semana. Uma paragem do PC mais curta do
@@ -117,8 +117,10 @@ async function ciclo(): Promise<string[]> {
   const revistos = reverNaoSaiu();
   if (revistos > 0) passos.push(`${revistos} "Não Saiu" revisto(s)`);
 
-  // Os editores ainda mandam as diárias? Escreve no log só quando muda.
+  // Os editores ainda mandam as diárias? E cada newsletter, uma a uma? (O
+  // editor corta lista a lista.) Escreve no log só quando muda.
   await vigiarCaixa();
+  await vigiarListas();
 
   return passos;
 }

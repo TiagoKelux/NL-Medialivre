@@ -4,7 +4,7 @@ import { corresponder } from "./correspondencia.ts";
 import { processarCorpo } from "./conteudo.ts";
 import { esquecerCampanhas, extrairMarcas, garantirMarcas, marcasDoEmail, type Marcas } from "./marcas.ts";
 import { podeSerDe } from "./prova.ts";
-import { marcarAbertos } from "./abertura.ts";
+import { abrirPendentes, pixelDeAbertura, SEM_PIXEL, type Pedir } from "./abertura.ts";
 import { reavaliar, registoDe } from "./registos.ts";
 import { dataEdicao, edicaoAnteriorEmFalta } from "./edicao.ts";
 import { NEWSLETTERS, newsletterPorId } from "../../config/newsletters.ts";
@@ -37,7 +37,10 @@ export interface ResumoRecolha {
   repetidas: number;
   atribuidas: number;
   registosAtualizados: number;
-  /** Emails novos marcados como abertos no editor (`abertura.ts`). */
+  /**
+   * Emails marcados como abertos no editor neste ciclo (`abertura.ts`): os
+   * novos e os da última semana cujo pixel tinha falhado.
+   */
   abertos: number;
 }
 
@@ -132,7 +135,7 @@ function plausiveis(remetente: string, assunto: string, marcas: Marcas, recebido
   return chaves;
 }
 
-export async function recolher(horas = 24, ler?: LeitorCaixa): Promise<ResumoRecolha> {
+export async function recolher(horas = 24, ler?: LeitorCaixa, pedir?: Pedir): Promise<ResumoRecolha> {
   const bd = db();
   const lerCaixa = ler ?? (await leitorPadrao());
   // Os já gravados nem chegam a ser descarregados; contam como repetidos.
@@ -147,8 +150,8 @@ export async function recolher(horas = 24, ler?: LeitorCaixa): Promise<ResumoRec
   const inserir = bd.prepare(`
     INSERT OR IGNORE INTO emails
       (internet_message_id, remetente, assunto, recebido_em,
-       corpo_html, corpo_normalizado, hash_conteudo, newsletter_id, marcas)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       corpo_html, corpo_normalizado, hash_conteudo, newsletter_id, marcas, abertura_falhas)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const resumo: ResumoRecolha = {
@@ -159,7 +162,9 @@ export async function recolher(horas = 24, ler?: LeitorCaixa): Promise<ResumoRec
     registosAtualizados: 0,
     abertos: 0,
   };
-  const novos: string[] = [];
+  // O mais antigo dos novos: um email que só agora se leu (o monitor esteve
+  // parado) abre-se na mesma, mesmo que seja de antes da última semana.
+  let novoMaisAntigo: Date | null = null;
 
   // Chave `newsletterId|data` dos registos que é preciso reavaliar.
   const afetados = new Set<string>();
@@ -187,6 +192,8 @@ export async function recolher(horas = 24, ler?: LeitorCaixa): Promise<ResumoRec
         hash,
         n?.id ?? null,
         JSON.stringify(marcas),
+        // Sem o pixel do SES não há nada a abrir: nem chega a ser candidato.
+        pixelDeAbertura(html) ? 0 : SEM_PIXEL,
       );
 
       // changes === 0 significa que o UNIQUE rejeitou: é o mesmo email outra
@@ -197,7 +204,8 @@ export async function recolher(horas = 24, ler?: LeitorCaixa): Promise<ResumoRec
       }
 
       resumo.novas++;
-      novos.push(html);
+      const recebido = new Date(m.receivedDateTime);
+      if (!novoMaisAntigo || recebido < novoMaisAntigo) novoMaisAntigo = recebido;
       if (n) {
         resumo.atribuidas++;
         for (const c of chaves(n, new Date(m.receivedDateTime))) afetados.add(c);
@@ -211,8 +219,9 @@ export async function recolher(horas = 24, ler?: LeitorCaixa): Promise<ResumoRec
   for (const c of reclassificar()) afetados.add(c);
 
   resumo.registosAtualizados = reavaliarAfetados(afetados);
-  // Depois de tudo gravado: abrir os novos, para o editor não cortar a caixa.
-  resumo.abertos = await marcarAbertos(novos);
+  // Depois de tudo gravado: abrir os novos e voltar a tentar os da última
+  // semana cujo pixel falhou, para o editor não cortar as listas.
+  resumo.abertos = (await abrirPendentes(new Date(), pedir, novoMaisAntigo)).abertos;
   return resumo;
 }
 

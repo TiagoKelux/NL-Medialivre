@@ -103,18 +103,33 @@ export interface LinhaMatriz extends Cadencia {
   celulas: (CelulaMatriz | null)[];
 }
 
-/** Um editor que deixou de mandar as diárias a esta caixa (lib/caixa.ts). */
-export interface CaixaCortadaAviso {
-  /** As marcas das diárias desse editor ("CM / Vidas"). */
-  marcas: string;
-  /** Primeiro dia esperado sem nenhuma diária (DD/MM). */
+/** Uma newsletter que deixou de chegar a esta caixa (lib/caixa.ts, `vigilanciaListas`). */
+export interface ListaSilencioAviso {
+  /** "Record Sporting". */
+  nome: string;
+  /** "aviso": a ficar em silêncio; "cortada": quase de certeza cortada pelo editor. */
+  nivel: "aviso" | "cortada";
+  /** Primeira edição esperada sem nada (DD/MM). */
   desde: string;
+  edicoesEmFalta: number;
+}
+
+/** Um email de reconquista recente ("vamos deixar de enviar") e o estado do pixel. */
+export interface ReconquistaAviso {
+  /** Dia em que chegou (DD/MM). */
+  dia: string;
+  assunto: string;
+  remetente: string;
+  aberto: boolean;
+  /** Hora a que o pixel respondeu, se respondeu. */
+  abertoAs: string | null;
 }
 
 interface Props {
   hoje: string;
   leitura: EstadoLeitura;
-  caixaCortada: CaixaCortadaAviso[];
+  listasEmSilencio: ListaSilencioAviso[];
+  reconquistas: ReconquistaAviso[];
   /** Emails da última semana sem newsletter atribuída (ver /classificar). */
   porClassificar: number;
   periodo: Periodo;
@@ -217,21 +232,64 @@ function LeituraCaixa({ leitura }: { leitura: EstadoLeitura }) {
 }
 
 /**
- * Os editores cortam o envio a caixas que nunca abrem os emails. A leitura
- * continua bem (o aviso de cima fica verde), mas as diárias deixam de chegar e
- * o painel enche-se de "Não recebida – sem prova". Sem este aviso, quem abre o
- * painel conclui que as newsletters falharam.
+ * Os editores cortam o envio, lista a lista, a caixas que não abrem os
+ * emails. A leitura continua bem (o aviso de cima fica verde), mas essas
+ * newsletters deixam de chegar e o painel enche-se de "Não recebida – sem
+ * prova". Sem este aviso, quem abre o painel conclui que as newsletters
+ * falharam. É só informação: não muda nenhum estado.
  */
-function AvisoCaixaCortada({ cortadas }: { cortadas: CaixaCortadaAviso[] }) {
-  if (cortadas.length === 0) return null;
-  const lista = cortadas.map((c) => `${c.marcas} (desde ${c.desde})`).join(", ");
+function AvisoListas({ listas }: { listas: ListaSilencioAviso[] }) {
+  if (listas.length === 0) return null;
+  const cortadas = listas.filter((l) => l.nivel === "cortada");
+  const avisos = listas.filter((l) => l.nivel === "aviso");
+  const texto = (ls: ListaSilencioAviso[]) =>
+    ls.map((l) => `${l.nome} (desde ${l.desde}, ${l.edicoesEmFalta} edições sem nada)`).join(", ");
   return (
     <p className="leitura alerta caixa-cortada" role="alert">
-      <strong>A caixa monitorizada deixou de receber as newsletters diárias de: {lista}.</strong>{" "}
-      Os editores costumam cortar o envio a caixas que não abrem os emails. Isto não quer dizer
-      que as newsletters não saíram: nesses dias o painel mostra “∅ Não recebida – sem prova”,
-      ou seja, não sabemos. Para voltar a vigiá-las, é preciso inscrever de novo a caixa nessas
-      newsletters.
+      {cortadas.length > 0 && (
+        <>
+          <strong>Deixaram de chegar à caixa monitorizada: {texto(cortadas)}.</strong>{" "}
+          <strong>Ação: reinscrever esta newsletter</strong>
+          {cortadas.length > 1 ? " (cada uma delas)" : ""}.{" "}
+        </>
+      )}
+      {avisos.length > 0 && (
+        <>
+          <strong>A ficar em silêncio: {texto(avisos)}.</strong> Confirmar no site do editor; se a
+          próxima edição também não chegar, reinscrever esta newsletter.{" "}
+        </>
+      )}
+      Os editores cortam o envio a caixas que não abrem os emails. Isto não quer dizer que as
+      newsletters não saíram: nesses dias o painel mostra “∅ Não recebida – sem prova”, ou seja,
+      não sabemos.
+    </p>
+  );
+}
+
+/**
+ * O editor manda um email de reconquista antes de cortar uma lista. Abri-lo
+ * (o pixel, abertura.ts) é o que a faz voltar no envio seguinte; se o pixel
+ * não respondeu, a lista é cortada de vez.
+ */
+function AvisoReconquistas({ reconquistas }: { reconquistas: ReconquistaAviso[] }) {
+  if (reconquistas.length === 0) return null;
+  const porAbrir = reconquistas.filter((r) => !r.aberto);
+  const abertas = reconquistas.filter((r) => r.aberto);
+  const texto = (rs: ReconquistaAviso[]) =>
+    rs
+      .map((r) => `${r.dia} «${r.assunto}» (${r.remetente})${r.abertoAs ? `, aberto às ${r.abertoAs}` : ""}`)
+      .join("; ");
+  const alerta = porAbrir.length > 0;
+  return (
+    <p className={alerta ? "leitura alerta caixa-cortada" : "leitura"} role={alerta ? "alert" : undefined}>
+      {alerta && (
+        <>
+          <strong>O editor avisou que vai deixar de enviar, e o email ainda não foi aberto: {texto(porAbrir)}.</strong>{" "}
+          O monitor volta a tentar abri-lo; se a newsletter deixar de chegar, reinscrever esta
+          newsletter.{" "}
+        </>
+      )}
+      {abertas.length > 0 && <>Emails de reconquista abertos (a lista deve continuar a chegar): {texto(abertas)}.</>}
     </p>
   );
 }
@@ -253,7 +311,7 @@ function Estado({ codigo, variante = null }: { codigo: CodigoEstado; variante?: 
   );
 }
 
-export default function Painel({ hoje, leitura, caixaCortada, porClassificar, periodo, grelha, dias, linhas }: Props) {
+export default function Painel({ hoje, leitura, listasEmSilencio, reconquistas, porClassificar, periodo, grelha, dias, linhas }: Props) {
   const [selecao, setSelecao] = useState<Selecao | null>(null);
   const [ativa, setAtiva] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<string>(TODAS);
@@ -419,7 +477,8 @@ export default function Painel({ hoje, leitura, caixaCortada, porClassificar, pe
       <header className="topo">
         <h1>Media Livre — Monitor de Newsletters</h1>
         <LeituraCaixa leitura={leitura} />
-        <AvisoCaixaCortada cortadas={caixaCortada} />
+        <AvisoListas listas={listasEmSilencio} />
+        <AvisoReconquistas reconquistas={reconquistas} />
         <p className={`soltos ${porClassificar > 0 ? "ha-soltos" : ""}`}>
           <Link href="/classificar">
             {porClassificar === 0

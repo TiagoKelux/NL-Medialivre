@@ -66,6 +66,24 @@ export function db(): Database.Database {
   if (!colunasEmails.some((c) => c.name === "marcas")) {
     bd.exec(`ALTER TABLE emails ADD COLUMN marcas TEXT DEFAULT NULL`);
   }
+  // Resultado da abertura (abertura.ts). Os emails que já lá estavam foram
+  // pedidos uma vez à chegada e não se sabe se responderam: ficam a -2
+  // ("anterior ao registo") e não se voltam a pedir — nunca abrir duas vezes.
+  if (!colunasEmails.some((c) => c.name === "aberto_em")) {
+    bd.transaction(() => {
+      bd.exec(`ALTER TABLE emails ADD COLUMN aberto_em TEXT DEFAULT NULL`);
+      bd.exec(`ALTER TABLE emails ADD COLUMN abertura_falhas INTEGER NOT NULL DEFAULT 0`);
+      bd.exec(`ALTER TABLE emails ADD COLUMN abertura_tentada_em TEXT DEFAULT NULL`);
+      bd.exec(`UPDATE emails SET abertura_falhas = -2`);
+    })();
+  }
+  // Só os por abrir, com o que a escolha precisa: o ciclo de 5 em 5 minutos
+  // encontra-os sem atravessar os corpos (ver o índice abaixo).
+  bd.exec(
+    `CREATE INDEX IF NOT EXISTS idx_emails_por_abrir
+       ON emails (recebido_em, abertura_falhas, abertura_tentada_em)
+       WHERE aberto_em IS NULL AND abertura_falhas >= 0`,
+  );
   // Índice de cobertura da reclassificação. O corpo (~70 KB) transborda para
   // páginas de overflow e as colunas gravadas DEPOIS dele (newsletter_id,
   // marcas) só se leem percorrendo-as todas — ler só essas colunas custava

@@ -22,7 +22,13 @@ CREATE TABLE IF NOT EXISTS emails (
   newsletter_id       TEXT             DEFAULT NULL,
   -- JSON com o que a identificação precisa do corpo, extraído à entrada
   -- (marcas.ts). Em bases antigas é acrescentada pelo db.ts.
-  marcas              TEXT             DEFAULT NULL
+  marcas              TEXT             DEFAULT NULL,
+  -- Abertura (abertura.ts): quando o pixel do SES respondeu, quantas vezes
+  -- falhou (-1 sem pixel, -2 anterior a este registo) e a última tentativa.
+  -- Em bases antigas são acrescentadas pelo db.ts.
+  aberto_em           TEXT             DEFAULT NULL,
+  abertura_falhas     INTEGER NOT NULL DEFAULT 0,
+  abertura_tentada_em TEXT             DEFAULT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_emails_newsletter ON emails (newsletter_id, recebido_em);

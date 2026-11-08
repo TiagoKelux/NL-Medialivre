@@ -1,5 +1,13 @@
 import { estadoLeitura } from "./leitura.ts";
-import { saudeCaixa, type CaixaCortada, type EstadoDominio } from "./caixa.ts";
+import {
+  saudeCaixa,
+  vigilanciaListas,
+  type CaixaCortada,
+  type EstadoDominio,
+  type ListaEmSilencio,
+  type ReconquistaRecente,
+} from "./caixa.ts";
+import { resumoAberturas } from "./abertura.ts";
 
 /** Acima disto sem uma leitura boa, alguma coisa parou: o ciclo é de 5 min. */
 const MAXIMO_MIN = 15;
@@ -28,6 +36,16 @@ export interface EstadoCompleto {
   caixa: EstadoDominio[] | null;
   /** Domínios cujas diárias deixaram de chegar (≥ 2 dias esperados). */
   caixaCortada: CaixaCortada[] | null;
+  /**
+   * Por newsletter: as que levam ≥ 2 edições esperadas sem nada ("aviso") ou
+   * ≥ 4 ("cortada"). Uma lista morta não se esconde atrás de outra do mesmo
+   * domínio que continua a chegar.
+   */
+  listasEmSilencio: ListaEmSilencio[] | null;
+  /** Emails de reconquista da última semana, e se o pixel já foi aberto. */
+  reconquistas: ReconquistaRecente[] | null;
+  /** Emails da última semana com pixel ainda por abrir (abertura.ts). */
+  aberturas: { porAbrir: number; comFalhas: number; desistidos: number } | null;
 }
 
 function leituraAgora(agora: Date) {
@@ -58,8 +76,9 @@ export function respostaSaude(agora: Date = new Date()): { status: 200 | 503; co
 }
 
 /**
- * O detalhe para quem está no painel, com o mesmo 200/503. `caixa` e
- * `caixaCortada` são informação extra: uma caixa cortada pelo editor não é o
+ * O detalhe para quem está no painel, com o mesmo 200/503. `caixa`,
+ * `caixaCortada`, `listasEmSilencio`, `reconquistas` e `aberturas` são
+ * informação extra: uma caixa cortada pelo editor não é o
  * monitor parado, e não mexe no estado HTTP. Se o cálculo falhar, vêm a null.
  */
 export function estadoCompleto(agora: Date = new Date()): { status: 200 | 503; corpo: EstadoCompleto } {
@@ -72,6 +91,20 @@ export function estadoCompleto(agora: Date = new Date()): { status: 200 | 503; c
     caixa = null;
   }
 
+  let listas: ReturnType<typeof vigilanciaListas> | null = null;
+  try {
+    listas = vigilanciaListas(agora);
+  } catch {
+    listas = null;
+  }
+
+  let aberturas: ReturnType<typeof resumoAberturas> | null = null;
+  try {
+    aberturas = resumoAberturas(agora);
+  } catch {
+    aberturas = null;
+  }
+
   return {
     status: saudavel ? 200 : 503,
     corpo: {
@@ -81,6 +114,9 @@ export function estadoCompleto(agora: Date = new Date()): { status: 200 | 503; c
       falha: falha?.erro ?? null,
       caixa: caixa?.dominios ?? null,
       caixaCortada: caixa?.caixaCortada ?? null,
+      listasEmSilencio: listas?.listas ?? null,
+      reconquistas: listas?.reconquistas ?? null,
+      aberturas,
     },
   };
 }
