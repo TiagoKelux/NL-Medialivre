@@ -149,10 +149,9 @@ function horaDe(n: Newsletter, hist: EdicaoVista[]): Ficha["hora"] {
 
 /** A ficha de uma newsletter, com as edições dos últimos 90 dias até hoje (inclusive). */
 export function fichaDe(n: Newsletter, hoje: string = dataLocal()): Ficha {
-  // `historico(n, d)` dá as edições anteriores a `d`, mas só lê os emails
-  // recebidos antes das 00h00 da véspera de `d`: pedir a de depois de amanhã
-  // é o que garante que a edição de hoje entra. Corta-se depois em hoje.
-  const hist = historico(n, somarDias(hoje, 2)).filter((e) => e.data <= hoje);
+  // `historico(n, d)` dá as edições anteriores a `d`: até amanhã, para a de
+  // hoje entrar. A última julga-se contra as anteriores, como na classificação.
+  const hist = historico(n, somarDias(hoje, 1)).filter((e) => e.data <= hoje);
   const perfil = perfilDe(hist);
 
   const vistos = [0, 0, 0, 0, 0, 0, 0];
