@@ -43,7 +43,23 @@ test("data de publicação: meta article:published_time, nas duas ordens, e JSON
     dataPublicacao(`<meta content="2026-10-01T08:00:00Z" property="article:published_time">`),
     "2026-10-01T08:00:00.000Z",
   );
-  assert.equal(dataPublicacao(`{"@type":"NewsArticle","datePublished":"2026-09-30"}`), "2026-09-30T00:00:00.000Z");
+  // Só o dia: 00h de Lisboa (23h UTC do dia anterior, no verão).
+  assert.equal(dataPublicacao(`{"@type":"NewsArticle","datePublished":"2026-09-30"}`), "2026-09-29T23:00:00.000Z");
+  // Negócios: o meta "published_time" (sem "article:") tem a hora; o JSON-LD só o dia.
+  assert.equal(
+    dataPublicacao(`{"dateModified":"2026-10-27T16:58:49+00:00","datePublished":"2026-10-27"}<meta name="published_time" content="2026-10-27T16:58:38+00:00" />`),
+    "2026-10-27T16:58:38.000Z",
+  );
+  // FLASH!/Máxima: datePublished só o dia, dateCreated com hora do mesmo dia.
+  assert.equal(
+    dataPublicacao(`{"dateCreated":"2026-09-29T13:21:42+01:00","dateModified":"2026-09-29T20:50:24+01:00","datePublished":"2026-09-29"}`),
+    "2026-09-29T12:21:42.000Z",
+  );
+  // MUST: o datePublished é o dia da atualização; o dateCreated, de outro dia, não se usa.
+  assert.equal(
+    dataPublicacao(`{"dateCreated":"2026-09-11T13:32:08+01:00","datePublished":"2026-09-25"}`),
+    "2026-09-24T23:00:00.000Z",
+  );
   assert.equal(dataPublicacao(`<html><head><title>sem data</title></head></html>`), null);
   assert.equal(dataPublicacao(`<meta property="article:published_time" content="ontem">`), null);
 });

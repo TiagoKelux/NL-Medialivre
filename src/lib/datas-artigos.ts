@@ -1,7 +1,7 @@
 import { db } from "./db.ts";
 import { extrairArtigos } from "./conteudo.ts";
 import { pedirPagina, type PedirPagina } from "./rede.ts";
-import { paraIso } from "./tempo.ts";
+import { paraInstante, paraIso } from "./tempo.ts";
 
 /**
  * A data de publicação dos artigos de cada edição.
@@ -46,15 +46,37 @@ export function artigosDoEmail(id: number, html?: string): string[] {
   return artigos;
 }
 
-/** A data de publicação que a página do artigo declara, ou null. */
+/**
+ * A data de publicação que a página do artigo declara, com hora, ou null.
+ *
+ * Cada site declara-a à sua maneira (medido a 09/11/2026):
+ *  - Record e CM: `article:published_time` e `datePublished` com hora;
+ *  - Negócios: `<meta name="published_time">` com hora, mas o `datePublished`
+ *    do JSON-LD só traz o dia;
+ *  - FLASH!, Máxima, MUST: `datePublished` só com o dia (na MUST, às vezes o
+ *    dia da última atualização) e `dateCreated` com hora.
+ * Só o dia (lido como 00h) faria de todos os artigos de ontem "anteriores à
+ * edição de ontem" e estragava a regra "nada publicado desde a anterior". Por
+ * isso: `published_time` → `datePublished` com hora → `dateCreated` com hora
+ * do mesmo dia que o `datePublished` → o dia, às 00h de Lisboa.
+ */
 export function dataPublicacao(html: string): string | null {
-  const meta =
-    html.match(/<meta[^>]+property=["']article:published_time["'][^>]+content=["']([^"']+)["']/i) ??
-    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']article:published_time["']/i) ??
-    html.match(/"datePublished"\s*:\s*"([^"]+)"/i);
-  if (!meta) return null;
-  const t = Date.parse(meta[1]);
-  return Number.isNaN(t) ? null : new Date(t).toISOString();
+  const meta = (nome: string) =>
+    html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${nome}["'][^>]+content=["']([^"']+)["']`, "i"))?.[1] ??
+    html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${nome}["']`, "i"))?.[1];
+  const json = (campo: string) => html.match(new RegExp(`"${campo}"\\s*:\\s*"([^"]+)"`, "i"))?.[1];
+  const temHora = (v?: string | null) => !!v && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v);
+  const valida = (v?: string | null) => (v && !Number.isNaN(Date.parse(v)) ? new Date(Date.parse(v)).toISOString() : null);
+
+  const publicado = meta("article:published_time") ?? meta("published_time");
+  if (temHora(publicado)) return valida(publicado);
+  const datePublished = json("datePublished");
+  if (temHora(datePublished)) return valida(datePublished);
+  const criado = json("dateCreated");
+  const dia = (datePublished ?? publicado ?? "").slice(0, 10);
+  if (temHora(criado) && (!dia || criado!.slice(0, 10) === dia)) return valida(criado);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dia)) return paraInstante(dia, "00:00").toISOString();
+  return valida(publicado ?? datePublished ?? null);
 }
 
 /**
