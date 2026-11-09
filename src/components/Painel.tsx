@@ -68,6 +68,38 @@ export interface CelulaMatriz {
   limitePassou: boolean;
   temConteudo: boolean;
   ressalva: Ressalva | null;
+  atrasoMinutos: number | null;
+  horaRecebida: string | null;
+}
+
+/** "45 min", "1 h 2 min", "2 d 4 h" — o tamanho do atraso, para a dica da célula. */
+function tamanhoAtraso(minutos: number): string {
+  if (minutos < 60) return `${minutos} min`;
+  if (minutos < 24 * 60) {
+    const h = Math.floor(minutos / 60);
+    const m = minutos % 60;
+    return m ? `${h} h ${m} min` : `${h} h`;
+  }
+  const d = Math.floor(minutos / (24 * 60));
+  const h = Math.floor((minutos % (24 * 60)) / 60);
+  return h ? `${d} d ${h} h` : `${d} d`;
+}
+
+/** A gravidade do atraso, para o tom da célula: até 1 h, até 3 h, mais. */
+function grauAtraso(minutos: number | null): string {
+  if (!minutos || minutos <= 0) return "";
+  return minutos <= 60 ? "atraso-1" : minutos <= 180 ? "atraso-2" : "atraso-3";
+}
+
+/** A dica da célula: o estado e, se saiu tarde, quanto. */
+function dicaCelula(rotuloDia: string, designacao: string, c: CelulaMatriz): string {
+  const atraso =
+    c.atrasoMinutos && c.atrasoMinutos > 0
+      ? ` · ${tamanhoAtraso(c.atrasoMinutos)} depois do limite${c.horaRecebida ? ` (chegou às ${c.horaRecebida})` : ""}`
+      : c.horaRecebida
+        ? ` · chegou às ${c.horaRecebida}`
+        : "";
+  return `${rotuloDia} — ${designacao}${atraso}${c.temConteudo ? " · clique para abrir a newsletter" : ""}`;
 }
 
 /** O que a rota /api/preview devolve para o cartão de passagem do rato. */
@@ -488,6 +520,9 @@ export default function Painel({ hoje, leitura, listasEmSilencio, reconquistas, 
                 : `${porClassificar} emails da última semana sem newsletter atribuída — classificar ›`}
           </Link>
         </p>
+        <p className="soltos">
+          <Link href="/fichas">Fichas das newsletters: o normal de cada uma e a última edição ›</Link>
+        </p>
       </header>
 
       <div className="linha-filtros">
@@ -705,12 +740,8 @@ export default function Painel({ hoje, leitura, listasEmSilencio, reconquistas, 
                               type="button"
                               className={`celula ${v ?? `cod-${c.codigo}`} ${c.fechado ? "" : "aberta"} ${
                                 c.temConteudo ? "com-conteudo" : ""
-                              } ${ativa === chave ? "ativa" : ""}`}
-                              title={
-                                c.temConteudo
-                                  ? `${dia.rotulo} — ${designacao} · clique para abrir a newsletter`
-                                  : `${dia.rotulo} — ${designacao}`
-                              }
+                              } ${ativa === chave ? "ativa" : ""} ${grauAtraso(c.atrasoMinutos)}`}
+                              title={dicaCelula(dia.rotulo, designacao, c)}
                               onMouseEnter={(ev) =>
                                 aoEntrar(ev, l.newsletterId, dia.data, c.detalhe, c.temConteudo)
                               }

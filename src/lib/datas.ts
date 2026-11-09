@@ -51,6 +51,26 @@ export function datasNoEmail(assunto: string, html: string, dataRecebido: string
   return [...datas];
 }
 
+/**
+ * A data escrita no topo da edição (o cabeçalho "Sexta-feira, 30 de Outubro
+ * de 2026" das FLASH!): a primeira data dos primeiros caracteres do texto,
+ * ou null. Mais abaixo já são datas de notícias.
+ */
+export function dataNoTopo(html: string, dataRecebido: string, caracteres = 400): string | null {
+  const texto = extrairTexto(html).slice(0, caracteres).replace(/https?:\/\/\S+/g, " ");
+  const ano = Number(dataRecebido.slice(0, 4));
+  let melhor: { pos: number; data: string } | null = null;
+  for (const m of texto.matchAll(POR_EXTENSO)) {
+    const d = montar(m[3] ? Number(m[3]) : ano, MESES[m[2].toLowerCase().slice(0, 3)], Number(m[1]));
+    if (d && (!melhor || m.index! < melhor.pos)) melhor = { pos: m.index!, data: d };
+  }
+  for (const m of texto.matchAll(NUMERICA)) {
+    const d = montar(m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]), Number(m[2]), Number(m[1]));
+    if (d && (!melhor || m.index! < melhor.pos)) melhor = { pos: m.index!, data: d };
+  }
+  return melhor?.data ?? null;
+}
+
 /** A frase que entra no detalhe do registo. */
 export function fraseData(
   datas: string[],

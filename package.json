@@ -17,6 +17,8 @@
     "verificar": "node --env-file-if-exists=.env scripts/verificar-correspondencia.ts",
     "email": "node --env-file=.env scripts/importar-email.ts",
     "recalendarizar": "node --env-file-if-exists=.env scripts/recalendarizar.ts",
+    "calibrar-perfis": "node --env-file-if-exists=.env scripts/calibrar-perfis.ts",
+    "mapa-perfis": "node --env-file-if-exists=.env scripts/mapa-perfis.ts",
     "test": "node --test \"test/**/*.test.ts\""
   },
   "dependencies": {

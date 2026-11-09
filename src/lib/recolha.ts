@@ -247,3 +247,20 @@ export function reavaliarAfetados(afetados: Iterable<string>): number {
   }
   return atualizados;
 }
+
+/**
+ * Reavalia as edições destes emails (pelo id), por exemplo quando os seus
+ * artigos ganharam data de publicação. Devolve quantos registos mudaram.
+ */
+export function reavaliarEmails(ids: number[]): number {
+  const ler = db().prepare(`SELECT newsletter_id, recebido_em FROM emails WHERE id = ?`);
+  const chavesAfetadas = new Set<string>();
+  for (const id of ids) {
+    const l = ler.get(id) as { newsletter_id: string | null; recebido_em: string } | undefined;
+    const n = l?.newsletter_id ? newsletterPorId(l.newsletter_id) : undefined;
+    if (!n || !l) continue;
+    const dia = dataEdicao(n, new Date(l.recebido_em));
+    if (registoDe(n.id, dia)) chavesAfetadas.add(`${n.id}|${dia}`);
+  }
+  return reavaliarAfetados(chavesAfetadas);
+}
