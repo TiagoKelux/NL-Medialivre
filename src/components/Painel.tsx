@@ -488,6 +488,9 @@ export default function Painel({ hoje, leitura, listasEmSilencio, reconquistas, 
                 : `${porClassificar} emails da última semana sem newsletter atribuída — classificar ›`}
           </Link>
         </p>
+        <p className="soltos">
+          <Link href="/fichas">Fichas das newsletters: o normal de cada uma e a última edição ›</Link>
+        </p>
       </header>
 
       <div className="linha-filtros">
