@@ -355,15 +355,22 @@ test("conteúdo: Jaccard 1 com menos de 3 artigos não prova repetição — só
   assert.match(r.detalhe, /provavelmente repetida: 2 de 2 artigos iguais à edição anterior/);
 });
 
-test("conteúdo: maioria dos artigos iguais (Jaccard ≥ limiar, < 1) mantém o código e avisa no detalhe", () => {
+test("conteúdo: a maioria dos artigos da anterior (Jaccard ≥ 0,75) é Duplicada; entre 0,7 e 0,75 só avisa", () => {
   // maxima-geral 02/10: a edição de 01/10 com mais um bloco — 6 de 7 (0,86).
+  // O controlo do cliente marcou 3 (Duplicada) aqui, a 29/10 e a 06/11.
   const r = classificar(
     ctx({ ocorrencias: [ocA("06:06", "h2", arts(1, 2, 3, 4, 5, 6, 7))], ...ant("h1", arts(1, 2, 3, 4, 5, 6)) }),
   );
-  assert.equal(r.codigo, 1);
-  assert.equal(r.provavelmenteRepetida, true);
-  assert.match(r.detalhe, /⚠ provavelmente repetida: 6 de 7 artigos iguais à edição anterior/);
+  assert.equal(r.codigo, 3);
+  assert.match(r.detalhe, /6 de 7 artigos iguais aos dessa edição → conteúdo duplicado/);
   assert.doesNotMatch(r.detalhe, /conteúdo novo/);
+  // negocios-ip 19/10: 8 de 9 com uma semanal de 10 (0,73) — o cliente marcou 1.
+  const ip = classificar(
+    ctx({ ocorrencias: [ocA("06:06", "h2", arts(1, 2, 3, 4, 5, 6, 7, 8, 20))], ...ant("h1", arts(1, 2, 3, 4, 5, 6, 7, 8, 30, 31)) }),
+  );
+  assert.equal(ip.codigo, 1);
+  assert.equal(ip.provavelmenteRepetida, true);
+  assert.match(ip.detalhe, /⚠ provavelmente repetida: 8 de 9 artigos/);
   // flash-mundo 04/10: 5 de 6 (0,71). Atrasada: fica 2, com o mesmo aviso.
   const f = classificar(
     ctx({ ocorrencias: [ocA("07:30", "h2", arts(1, 2, 3, 4, 5, 9))], ...ant("h1", arts(1, 2, 3, 4, 5, 6)) }),
@@ -378,7 +385,7 @@ test("conteúdo: maioria dos artigos iguais (Jaccard ≥ limiar, < 1) mantém o 
     }),
   );
   assert.equal(d.codigo, 3);
-  assert.match(d.detalhe, /1\.º envio: .*provavelmente repetida: 6 de 7 artigos/);
+  assert.match(d.detalhe, /1\.º envio: .*6 de 7 artigos iguais aos dessa edição → conteúdo duplicado/);
 });
 
 test("conteúdo: abaixo do limiar (negocios-tecnologia 01/10, 0,67) é conteúdo novo, sem aviso", () => {
@@ -400,7 +407,7 @@ test("conteúdo: sem artigos de um dos lados, decide só o hash", () => {
   assert.match(r.detalhe, /conteúdo novo/);
 });
 
-test("conteúdo: o assunto nunca é prova; artigos repetidos avisam ou dão 4 (de ponta a ponta)", () => {
+test("conteúdo: o assunto nunca é prova; artigos repetidos dão 3 ou 4 (de ponta a ponta)", () => {
   // flash-weekend 15/10 repetiu o assunto de 08/10 ("n.º 203") com 8 artigos novos.
   const n = nl("negocios-tecnologia");
   const de = "Jornal de Negócios Tecnologia <info@news.jornaldenegocios.pt>";
@@ -419,12 +426,12 @@ test("conteúdo: o assunto nunca é prova; artigos repetidos avisam ou dão 4 (d
   assert.doesNotMatch(r.detalhe, /provavelmente|repetido/);
   assert.match(r.detalhe, /Hash diferente da edição de 19\/10 → conteúdo novo/);
 
-  // Assunto novo, mas 6 de 7 artigos de ontem: aviso no detalhe, código mantém-se.
+  // Assunto novo, mas 6 de 7 artigos de ontem: Duplicada (critério do cliente).
   gravarEmail(de, "Assunto completamente novo", lisboa("2026-10-21", "15:05"), n.id, corpo([11, 12, 13, 14, 15, 16, 17]));
   registos.reavaliar(n.id, "2026-10-21");
   r = registo(n.id, "2026-10-21");
-  assert.equal(r.codigo_estado, 1);
-  assert.match(r.detalhe, /provavelmente repetida: 6 de 7 artigos iguais à edição anterior/);
+  assert.equal(r.codigo_estado, 3);
+  assert.match(r.detalhe, /6 de 7 artigos iguais aos dessa edição → conteúdo duplicado/);
 
   // Exatamente os mesmos artigos, com outro texto à volta: 4.
   gravarEmail(

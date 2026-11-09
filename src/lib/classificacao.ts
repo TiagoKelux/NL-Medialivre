@@ -23,9 +23,20 @@ const HASH_VAZIO = hashConteudo("");
  * 15/10 (`scripts/calibrar-artigos.ts`): as edições requentadas conhecidas
  * deram 0,86 (maxima-geral 02/10) e 0,71 (flash-mundo 04/10); a edição
  * legítima mais parecida com a anterior deu 0,67 (negocios-tecnologia).
- * Abaixo de 1 o código NÃO muda: é só um aviso, a decisão é do dono do produto.
+ * Entre este limiar e LIMIAR_DUPLICADA o código NÃO muda: é só um aviso.
  */
 export const LIMIAR_ARTIGOS = 0.7;
+
+/**
+ * Semelhança (Jaccard) a partir da qual a edição é "Saiu Duplicada" (código
+ * 3): a maioria dos artigos é a da edição anterior. É o critério do controlo
+ * manual do cliente (Excel "Newsletters Horários", 29/09 a 08/11/2026): marcou
+ * 3 nas três edições com 0,75 ou mais (maxima-geral 02/10 0,86, 29/10 e 06/11
+ * 0,75) e 1 em todas as outras — a mais parecida foi negocios-ip 19/10, 0,73.
+ * A margem é curta: rever com cada novo controlo importado
+ * (`npm run calibrar-perfis`, página /controlo).
+ */
+export const LIMIAR_DUPLICADA = 0.75;
 
 /**
  * Mínimo de artigos para que "os mesmos artigos" prove repetição (código 4).
@@ -242,6 +253,9 @@ export function classificar(ctx: Contexto): Resultado {
   const artigosIguais = sem !== null && sem.jaccard === 1 && sem.total >= MIN_ARTIGOS;
   const provavelmenteRepetida =
     !hashIgual && !artigosIguais && sem !== null && sem.jaccard >= LIMIAR_ARTIGOS;
+  // A maioria dos artigos da anterior: Duplicada, como no controlo do cliente.
+  const duplicadaArtigos =
+    provavelmenteRepetida && sem!.total >= MIN_ARTIGOS && sem!.jaccard >= LIMIAR_DUPLICADA;
 
   // Contra todo o histórico (perfil.ts): uma edição antiga reenviada, ou
   // artigos muito mais velhos do que o normal desta newsletter.
@@ -266,6 +280,9 @@ export function classificar(ctx: Contexto): Resultado {
       ? `Hash igual ao da edição de ${diaAnterior} → conteúdo repetido.`
       : artigosIguais
         ? `Os mesmos ${sem!.total} artigos da edição de ${diaAnterior} → conteúdo repetido.`
+        : duplicadaArtigos
+          ? `Hash diferente da edição de ${diaAnterior}, mas ${sem!.iguais} de ${sem!.total} artigos ` +
+            `iguais aos dessa edição → conteúdo duplicado.`
         : provavelmenteRepetida
           ? `Hash diferente da edição de ${diaAnterior}, mas ⚠ provavelmente repetida: ` +
             `${sem!.iguais} de ${sem!.total} artigos iguais à edição anterior.`
@@ -302,6 +319,11 @@ export function classificar(ctx: Contexto): Resultado {
   // ── 4: conteúdo igual ao da edição anterior ─────────────────────────────
   if (repetido) {
     return { ...base, codigo: 4, detalhe: `${fraseJanela} ${fraseConteudo}${notaCaixa}` };
+  }
+
+  // ── 3: a maioria dos artigos é a da edição anterior ─────────────────────
+  if (duplicadaArtigos) {
+    return { ...base, codigo: 3, detalhe: `${fraseJanela} ${fraseConteudo}${notaCaixa}` };
   }
 
   // ── 2: fora da janela ───────────────────────────────────────────────────
