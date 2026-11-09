@@ -233,7 +233,14 @@ export function sinaisConteudo(atual: EdicaoVista, hist: EdicaoVista[]): SinaisC
       } else if (med > Math.max(1, FATOR_AVISO_IDADE * perfil.idade.max)) {
         s.avisos.push(`⚠ ${base}: mais velho do que em qualquer edição anterior (${normal}).`);
       } else {
-        s.idade = `${base}; ${normal} ✓`;
+        // Acima do habitual mas abaixo de qualquer aviso (uma segunda-feira
+        // depois de sexta, por exemplo): dizê-lo, em vez de "até X ✓" com um
+        // valor maior do que X ao lado.
+        const margem = Math.min(limite, Math.max(1, FATOR_AVISO_IDADE * perfil.idade.max));
+        s.idade =
+          med <= perfil.idade.p90
+            ? `${base}; ${normal} ✓`
+            : `${base}; acima do habitual desta newsletter (até ${dias(perfil.idade.p90)}), mas dentro da margem aceite (até ${dias(margem)}) ✓`;
         s.frescoProvado = true;
       }
     } else if (med > AVISO_SEM_PERFIL_DIAS) {

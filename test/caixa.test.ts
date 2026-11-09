@@ -325,3 +325,14 @@ test("Record Premium: a edição é reconhecida pela campanha; boas-vindas e rec
   const plus = '<a href="https://www.record.pt/x%3Futm_campaign=premiumplus%26utm_medium=email">x</a>';
   assert.equal(corresponder(de, "Manchete", plus), null);
 });
+
+test("Morning Call Premium: reconhecida pelo nome do remetente (o corpo não traz utm_campaign)", () => {
+  const html = "<html><body><p>Bolsas recuperam</p><a href=\"https://www.jornaldenegocios.pt/mercados/x\">ler</a></body></html>";
+  const de = "Negócios Premium Morning Call <info@assinaturas.jornaldenegocios.pt>";
+  assert.equal(corresponder(de, "Bolsas recuperam apesar de escândalo na Nvidia", html)?.id, "negocios-premium-morning-call");
+  // Outro nome no mesmo endereço não é a Morning Call.
+  assert.notEqual(
+    corresponder("Negócios <info@assinaturas.jornaldenegocios.pt>", "Bolsas recuperam", html)?.id,
+    "negocios-premium-morning-call",
+  );
+});

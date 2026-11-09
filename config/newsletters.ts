@@ -229,8 +229,10 @@ export const NEWSLETTERS: Newsletter[] = [
     diasMes: null,
     horaPrevista: "09:47",
     toleranciaMinutos: 30,
-    remetentes: [],
-    padraoRemetente: "",
+    // Primeira edição vista a 09/11/2026 09:48, depois de reativada a lista:
+    // o corpo não traz utm_campaign, distingue-se pelo nome do remetente.
+    remetentes: ["info@assinaturas.jornaldenegocios.pt"],
+    padraoRemetente: "Negócios Premium Morning Call",
     padraoAssunto: "",
     marcaCorpo: "",
     ativa: true,
