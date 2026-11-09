@@ -47,11 +47,6 @@ hoje continua a ser uma edição normal.
   para artigos de ontem — só dá aviso, ou nada.
 - **Menos de 5 edições de histórico:** ainda não há perfil; a idade dos artigos só dá aviso (acima de 30 dias). A comparação com edições antigas funciona desde a 2.ª edição.
 - **Artigos sem data de publicação:** uma edição só se mede pela idade com pelo menos 3 artigos datados e 60% dos artigos com data. Abaixo disso, só contam as outras verificações.
-- **Datas só com o dia:** flash.pt, jornaldenegocios.pt, maxima.pt, must.jornaldenegocios.pt declaram só o dia de publicação (00:00), sem hora.
-  Aí a idade tem a precisão de um dia: uma newsletter que aponta para os artigos de
-  ontem aparece com mais de um dia. E a regra "nada publicado desde a edição anterior" não ajuda
-  nestas: o dia de ontem às 00:00 é sempre anterior à edição de ontem. A prova vem só
-  do limite de idade (e da comparação com edições antigas).
 - **Newsletters que deixam de chegar** (a lista cortou a caixa): o perfil fica parado na
   última edição recebida e volta a servir quando a caixa for reinscrita.
 
@@ -67,7 +62,7 @@ hoje continua a ser uma edição normal.
 
 Os perfis (p50, p90, máximo) contam só as edições anteriores, e só com 5 ou mais. O artigo mais recente usa-se porque é estável em cada newsletter; a idade **mediana** não serve (há newsletters que apontam, ao lado das notícias do dia, para artigos de contexto com semanas).
 
-**Verificação sobre este histórico** (`npm run calibrar-perfis`): cada edição julgada só com as anteriores — 329 edições, 181 medidas pela idade contra um perfil, **0 provas** e 2 avisos.
+**Verificação sobre este histórico** (`npm run calibrar-perfis`): cada edição julgada só com as anteriores — 329 edições, 181 medidas pela idade contra um perfil, **0 provas** e 3 avisos.
 
 ## Resumo
 
@@ -77,28 +72,28 @@ Os perfis (p50, p90, máximo) contam só as edições anteriores, e só com 5 ou
 | CM — Bom Dia | diária | 25 | 10:00 | 10:07 (+7 min) | 14 | 3 h | 98% | 0% | não | completo |
 | CM — Exclusivos | diária | 6 | 06:00 | 06:06 (+6 min) | 15 | 5 h | 96% | 0% | não | completo |
 | CM — O Melhor da Semana | semanal (sex) | 1 | 16:00 | 16:05 (+5 min) | — | — | 100% | — | não | insuficiente (1 de 5) |
-| Flash — Bom Dia | diária | 25 | 10:00 | 10:06 (+6 min) | 8 | 1,4 d | 100% | 50% | sim | completo |
-| Flash — Moda e Beleza | dias úteis | 17 | 15:00 | 15:07 (+7 min) | 3 | 1,6 d | 100% | 60% | não | completo |
-| Flash — Mundo | diária | 27 | 08:00 | 08:06 (+6 min) | 6 | 1,3 d | 100% | 50% | sim | completo |
-| Flash — The Mag | semanal (sex) | 6 | 13:00 | 13:05 (+5 min) | 8 | 1,5 d | 100% | 13% | não | completo |
-| Flash — Weekend | semanal (qui) | 6 | 07:00 | 07:08 (+8 min) | 8 | 1,3 d | 100% | 13% | não | completo |
+| Flash — Bom Dia | diária | 25 | 10:00 | 10:06 (+6 min) | 8 | 15 h | 100% | 50% | sim | completo |
+| Flash — Moda e Beleza | dias úteis | 17 | 15:00 | 15:07 (+7 min) | 3 | 23 h | 100% | 60% | não | completo |
+| Flash — Mundo | diária | 27 | 08:00 | 08:06 (+6 min) | 6 | 16 h | 100% | 50% | sim | completo |
+| Flash — The Mag | semanal (sex) | 6 | 13:00 | 13:05 (+5 min) | 8 | 19 h | 100% | 13% | não | completo |
+| Flash — Weekend | semanal (qui) | 6 | 07:00 | 07:08 (+8 min) | 8 | 18 h | 100% | 13% | não | completo |
 | Máxima — Fim de Semana | semanal (sex) | 6 | 12:00 | 12:02 (+2 min) | 6 | 12 h | 100% | 83% | não | completo |
 | Máxima — Geral | dias úteis | 18 | 09:00 | 09:03 (+3 min) | 7 | 1,4 d | 100% | 86% | não | completo |
 | Must — Must | semanal (qua) | 6 | 16:30 | 16:34 (+4 min) | 5 | — | 100% | 60% | não | parcial (sem idade) |
 | Negócios — 5 Coisas | dias úteis | 18 | 08:00 | 08:05 (+5 min) | 10 | 8 h | 99% | 11% | não | completo |
 | Negócios — A Economia das Coisas | semanal (sex) | 1 | 14:00 | 14:06 (+6 min) | — | — | 100% | — | não | insuficiente (1 de 5) |
-| Negócios — Abertura | dias úteis | 6 | 10:30 | 10:34 (+4 min) | 14 | 10 h | 100% | 21% | não | completo |
+| Negócios — Abertura | dias úteis | 6 | 10:30 | 10:34 (+4 min) | 14 | 1 h | 100% | 21% | não | completo |
 | Negócios — Assinantes Diária | dias úteis | 2 | 09:00 | 09:04 (+4 min) | — | — | 100% | — | não | insuficiente (2 de 5) |
 | Negócios — Cripto | semanal (qui) | 1 | 11:30 | 11:34 (+4 min) | — | — | 100% | — | não | insuficiente (1 de 5) |
-| Negócios — Fecho | dias úteis | 21 | 18:30 | 18:34 (+4 min) | 14 | 18 h | 99% | 20% | não | completo |
-| Negócios — Finanças | semanal (ter) | 5 | 11:00 | 11:04 (+4 min) | 16 | 10 h | 100% | 0% | não | completo |
+| Negócios — Fecho | dias úteis | 21 | 18:30 | 18:34 (+4 min) | 14 | 2 h | 99% | 20% | não | completo |
+| Negócios — Finanças | semanal (ter) | 5 | 11:00 | 11:04 (+4 min) | 16 | 1 h | 100% | 0% | não | completo |
 | Negócios — IP | semanal (seg) | 4 | 14:00 | 14:05 (+5 min) | — | — | 96% | — | não | insuficiente (4 de 5) |
-| Negócios — Lex | semanal (qui) | 6 | 17:00 | 17:04 (+4 min) | 10 | 16 h | 98% | 30% | não | completo |
-| Negócios — Opinião | dias úteis | 6 | 12:00 | 12:06 (+6 min) | 12 | 11 h | 100% | 33% | não | completo |
+| Negócios — Lex | semanal (qui) | 6 | 17:00 | 17:04 (+4 min) | 10 | 9 h | 98% | 30% | não | completo |
+| Negócios — Opinião | dias úteis | 6 | 12:00 | 12:06 (+6 min) | 12 | 4 h | 100% | 33% | não | completo |
 | Negócios — Opinião Economistas | semanal (sex) | 1 | 11:30 | 11:34 (+4 min) | — | — | 100% | — | não | insuficiente (1 de 5) |
 | Negócios — Primeira Página | dias úteis | 2 | 06:00 | 06:02 (+2 min) | — | — | 91% | — | não | insuficiente (2 de 5) |
 | Negócios — Sua Semana | semanal (dom) | 5 | 20:00 | 20:04 (+4 min) | 14 | 20 h | 99% | 6% | não | completo |
-| Negócios — Tecnologia | dias úteis | 19 | 15:00 | 15:05 (+5 min) | 10 | 15 h | 95% | 67% | não | completo |
+| Negócios — Tecnologia | dias úteis | 19 | 15:00 | 15:05 (+5 min) | 10 | 4 h | 95% | 67% | não | completo |
 | Negócios — Weekend | semanal (sáb) | 1 | 15:00 | 15:03 (+3 min) | — | — | 100% | — | não | insuficiente (1 de 5) |
 | Record — Benfica | diária | 6 | 11:45 | 11:07 (-38 min) | 19 | 1 h | 100% | 21% | não | completo |
 | Record — Geral | diária | 25 | 09:00 | 09:04 (+4 min) | 22 | 1 h | 97% | 9% | não | completo |
@@ -230,8 +225,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora prevista | 10:00 |
 | Hora real | mediana 10:06 (+6 min), p90 10:08 (+8 min) |
 | Artigos por edição | mediana 8, 8 a 8 |
-| Artigo mais recente, idade | 1,4 d (p90 1,4 d, máx. 1,4 d) |
-| Artigos com data de publicação | 100% (161 de 161); precisão: só o dia (sem hora) |
+| Artigo mais recente, idade | 15 h (p90 19 h, máx. 21 h) |
+| Artigos com data de publicação | 100% (161 de 161); precisão: data e hora |
 | Artigos já usados antes | mediana 25%, p90 50%, máx. 63% |
 | Escreve a data no topo | sim, sempre (certa em 25 de 25) |
 | Aponta para | flash.pt 100% |
@@ -239,8 +234,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 Como se julga a próxima edição:
 
 - Igual a uma das 25 edições anteriores (texto, ou os mesmos artigos) → **prova**.
-- Artigo mais recente com mais de **4,3 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
-- Artigo mais recente com mais de 2,1 d (e até 4,3 d) → aviso.
+- Artigo mais recente com mais de **2,4 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
+- Artigo mais recente com mais de 1,3 d (e até 2,4 d) → aviso.
 - Data no topo diferente do dia da edição → **prova**.
 - 80% ou mais dos artigos já usados antes → aviso.
 - Menos de 4 ou mais de 12 artigos → aviso.
@@ -259,8 +254,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora prevista | 15:00 |
 | Hora real | mediana 15:07 (+7 min), p90 15:08 (+8 min) |
 | Artigos por edição | mediana 3, 2 a 5 |
-| Artigo mais recente, idade | 1,6 d (p90 1,6 d, máx. 1,6 d) |
-| Artigos com data de publicação | 100% (44 de 44); precisão: só o dia (sem hora) |
+| Artigo mais recente, idade | 23 h (p90 1,0 d, máx. 1,0 d) |
+| Artigos com data de publicação | 100% (44 de 44); precisão: data e hora |
 | Artigos já usados antes | mediana 20%, p90 60%, máx. 80% |
 | Escreve a data no topo | não é hábito (certa em 5 de 17) |
 | Aponta para | flash.pt 100% |
@@ -268,8 +263,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 Como se julga a próxima edição:
 
 - Igual a uma das 17 edições anteriores (texto, ou os mesmos artigos) → **prova**.
-- Artigo mais recente com mais de **4,9 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
-- Artigo mais recente com mais de 2,4 d (e até 4,9 d) → aviso.
+- Artigo mais recente com mais de **3,0 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
+- Artigo mais recente com mais de 1,5 d (e até 3,0 d) → aviso.
 - Mais de 80% dos artigos já usados antes → aviso.
 - Menos de 1 ou mais de 8 artigos → aviso.
 
@@ -287,8 +282,8 @@ No histórico: 14/10 80% dos artigos já tinham saído em edições anteriores (
 | Hora prevista | 08:00 |
 | Hora real | mediana 08:06 (+6 min), p90 08:07 (+7 min) |
 | Artigos por edição | mediana 6, 5 a 6 |
-| Artigo mais recente, idade | 1,3 d (p90 1,3 d, máx. 1,3 d) |
-| Artigos com data de publicação | 100% (122 de 122); precisão: só o dia (sem hora) |
+| Artigo mais recente, idade | 16 h (p90 19 h, máx. 1,3 d) |
+| Artigos com data de publicação | 100% (122 de 122); precisão: data e hora |
 | Artigos já usados antes | mediana 17%, p90 50%, máx. 83% |
 | Escreve a data no topo | sim, sempre (certa em 25 de 27) |
 | Aponta para | flash.pt 100% |
@@ -296,13 +291,13 @@ No histórico: 14/10 80% dos artigos já tinham saído em edições anteriores (
 Como se julga a próxima edição:
 
 - Igual a uma das 27 edições anteriores (texto, ou os mesmos artigos) → **prova**.
-- Artigo mais recente com mais de **4,0 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
-- Artigo mais recente com mais de 2,0 d (e até 4,0 d) → aviso.
+- Artigo mais recente com mais de **2,3 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
+- Artigo mais recente com mais de 2,0 d (e até 2,3 d) → aviso.
 - Data no topo diferente do dia da edição → **prova**.
 - 80% ou mais dos artigos já usados antes → aviso.
 - Menos de 2 ou mais de 9 artigos → aviso.
 
-No histórico: nenhuma edição daria prova nem aviso.
+No histórico: 06/11 Artigo mais recente publicado há 1,3 dias (6 artigos com data): mais velho do que em qualquer edição anterior (o normal desta newsletter é até 18 h).
 
 ### Flash — The Mag
 
@@ -317,8 +312,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora real | mediana 13:05 (+5 min), p90 13:08 (+8 min) |
 | Edições com mais de um email | 4 |
 | Artigos por edição | mediana 8, 8 a 8 |
-| Artigo mais recente, idade | 1,5 d (p90 1,5 d, máx. 1,5 d) |
-| Artigos com data de publicação | 100% (47 de 47); precisão: só o dia (sem hora) |
+| Artigo mais recente, idade | 19 h (p90 21 h, máx. 21 h) |
+| Artigos com data de publicação | 100% (47 de 47); precisão: data e hora |
 | Artigos já usados antes | mediana 0%, p90 13%, máx. 13% |
 | Escreve a data no topo | não |
 | Aponta para | flash.pt 100% |
@@ -326,8 +321,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 Como se julga a próxima edição:
 
 - Igual a uma das 6 edições anteriores (texto, ou os mesmos artigos) → **prova**.
-- Artigo mais recente com mais de **4,6 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
-- Artigo mais recente com mais de 2,3 d (e até 4,6 d) → aviso.
+- Artigo mais recente com mais de **2,7 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
+- Artigo mais recente com mais de 1,3 d (e até 2,7 d) → aviso.
 - 80% ou mais dos artigos já usados antes → aviso.
 - Menos de 4 ou mais de 12 artigos → aviso.
 
@@ -345,8 +340,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora prevista | 07:00 |
 | Hora real | mediana 07:08 (+8 min), p90 07:08 (+8 min) |
 | Artigos por edição | mediana 8, 8 a 8 |
-| Artigo mais recente, idade | 1,3 d (p90 1,3 d, máx. 1,3 d) |
-| Artigos com data de publicação | 100% (47 de 47); precisão: só o dia (sem hora) |
+| Artigo mais recente, idade | 18 h (p90 1,3 d, máx. 1,3 d) |
+| Artigos com data de publicação | 100% (47 de 47); precisão: data e hora |
 | Artigos já usados antes | mediana 0%, p90 13%, máx. 13% |
 | Escreve a data no topo | não |
 | Aponta para | flash.pt 100% |
@@ -374,7 +369,7 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora real | mediana 12:02 (+2 min), p90 12:05 (+5 min) |
 | Artigos por edição | mediana 6, 6 a 6 |
 | Artigo mais recente, idade | 12 h (p90 1,5 d, máx. 1,5 d) |
-| Artigos com data de publicação | 100% (28 de 28); precisão: só o dia (sem hora) |
+| Artigos com data de publicação | 100% (28 de 28); precisão: data e hora |
 | Artigos já usados antes | mediana 17%, p90 83%, máx. 83% |
 | Escreve a data no topo | não |
 | Aponta para | maxima.pt 100% |
@@ -402,8 +397,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora real | mediana 09:03 (+3 min), p90 09:04 (+4 min) |
 | Edições com mais de um email | 1 |
 | Artigos por edição | mediana 7, 6 a 7 |
-| Artigo mais recente, idade | 1,4 d (p90 1,4 d, máx. 3,3 d) |
-| Artigos com data de publicação | 100% (67 de 67); precisão: só o dia (sem hora) |
+| Artigo mais recente, idade | 1,4 d (p90 1,4 d, máx. 2,8 d) |
+| Artigos com data de publicação | 100% (67 de 67); precisão: data e hora |
 | Artigos já usados antes | mediana 43%, p90 86%, máx. 100% |
 | Escreve a data no topo | não é hábito (certa em 0 de 18, outra data em 1) |
 | Aponta para | maxima.pt 100% |
@@ -430,7 +425,7 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora real | mediana 16:34 (+4 min), p90 16:36 (+6 min) |
 | Artigos por edição | mediana 5, 2 a 9 |
 | Artigo mais recente, idade | — |
-| Artigos com data de publicação | 100% (20 de 20); precisão: só o dia (sem hora) |
+| Artigos com data de publicação | 100% (20 de 20); precisão: data e hora |
 | Artigos já usados antes | mediana 50%, p90 60%, máx. 60% |
 | Escreve a data no topo | não |
 | Aponta para | must.jornaldenegocios.pt 100% |
@@ -457,7 +452,7 @@ No histórico: 04/11 9 artigos (o costume é 2 a 5).
 | Hora real | mediana 08:05 (+5 min), p90 08:06 (+6 min) |
 | Artigos por edição | mediana 10, 5 a 15 |
 | Artigo mais recente, idade | 8 h (p90 8 h, máx. 8 h) |
-| Artigos com data de publicação | 99% (169 de 170); precisão: só o dia (sem hora) |
+| Artigos com data de publicação | 99% (169 de 170); precisão: data e hora |
 | Artigos já usados antes | mediana 7%, p90 11%, máx. 21% |
 | Escreve a data no topo | não |
 | Aponta para | jornaldenegocios.pt 100% |
@@ -485,7 +480,7 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora real | mediana 14:06 (+6 min), p90 14:06 (+6 min) |
 | Artigos por edição | mediana 6, 6 a 6 |
 | Artigo mais recente, idade | — |
-| Artigos com data de publicação | 100% (6 de 6); precisão: só o dia em jornaldenegocios.pt |
+| Artigos com data de publicação | 100% (6 de 6); precisão: data e hora |
 | Artigos já usados antes | mediana 0%, p90 0%, máx. 0% |
 | Escreve a data no topo | não |
 | Aponta para | jornaldenegocios.pt 83%, theguardian.com 17% |
@@ -509,8 +504,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora prevista | 10:30 |
 | Hora real | mediana 10:34 (+4 min), p90 10:36 (+6 min) |
 | Artigos por edição | mediana 14, 14 a 14 |
-| Artigo mais recente, idade | 10 h (p90 10 h, máx. 10 h) |
-| Artigos com data de publicação | 100% (77 de 77); precisão: só o dia (sem hora) |
+| Artigo mais recente, idade | 1 h (p90 1 h, máx. 1 h) |
+| Artigos com data de publicação | 100% (77 de 77); precisão: data e hora |
 | Artigos já usados antes | mediana 7%, p90 21%, máx. 21% |
 | Escreve a data no topo | não |
 | Aponta para | jornaldenegocios.pt 100% |
@@ -518,8 +513,7 @@ No histórico: nenhuma edição daria prova nem aviso.
 Como se julga a próxima edição:
 
 - Igual a uma das 6 edições anteriores (texto, ou os mesmos artigos) → **prova**.
-- Artigo mais recente com mais de **1,2 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
-- Artigo mais recente com mais de 1,0 d (e até 1,2 d) → aviso.
+- Artigo mais recente com mais de **1,0 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
 - 80% ou mais dos artigos já usados antes → aviso.
 - Menos de 7 ou mais de 21 artigos → aviso.
 
@@ -538,7 +532,7 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora real | mediana 09:04 (+4 min), p90 09:04 (+4 min) |
 | Artigos por edição | mediana 18, 16 a 18 |
 | Artigo mais recente, idade | — |
-| Artigos com data de publicação | 100% (33 de 33); precisão: só o dia (sem hora) |
+| Artigos com data de publicação | 100% (33 de 33); precisão: data e hora |
 | Artigos já usados antes | mediana 6%, p90 6%, máx. 6% |
 | Escreve a data no topo | não |
 | Aponta para | jornaldenegocios.pt 100% |
@@ -563,7 +557,7 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora real | mediana 11:34 (+4 min), p90 11:34 (+4 min) |
 | Artigos por edição | mediana 8, 8 a 8 |
 | Artigo mais recente, idade | — |
-| Artigos com data de publicação | 100% (8 de 8); precisão: só o dia (sem hora) |
+| Artigos com data de publicação | 100% (8 de 8); precisão: data e hora |
 | Artigos já usados antes | mediana 0%, p90 0%, máx. 0% |
 | Escreve a data no topo | não é hábito (certa em 1 de 1) |
 | Aponta para | jornaldenegocios.pt 100% |
@@ -587,8 +581,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora prevista | 18:30 |
 | Hora real | mediana 18:34 (+4 min), p90 18:36 (+6 min) |
 | Artigos por edição | mediana 14, 14 a 15 |
-| Artigo mais recente, idade | 18 h (p90 19 h, máx. 19 h) |
-| Artigos com data de publicação | 99% (273 de 275); precisão: só o dia em jornaldenegocios.pt |
+| Artigo mais recente, idade | 2 h (p90 2 h, máx. 2 h) |
+| Artigos com data de publicação | 99% (273 de 275); precisão: data e hora |
 | Artigos já usados antes | mediana 7%, p90 20%, máx. 21% |
 | Escreve a data no topo | não |
 | Aponta para | jornaldenegocios.pt 99%, marketingstars.nowcanal.pt 1% |
@@ -596,8 +590,7 @@ No histórico: nenhuma edição daria prova nem aviso.
 Como se julga a próxima edição:
 
 - Igual a uma das 21 edições anteriores (texto, ou os mesmos artigos) → **prova**.
-- Artigo mais recente com mais de **2,3 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
-- Artigo mais recente com mais de 1,2 d (e até 2,3 d) → aviso.
+- Artigo mais recente com mais de **1,0 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
 - 80% ou mais dos artigos já usados antes → aviso.
 - Menos de 7 ou mais de 23 artigos → aviso.
 
@@ -615,8 +608,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora prevista | 11:00 |
 | Hora real | mediana 11:04 (+4 min), p90 11:06 (+6 min) |
 | Artigos por edição | mediana 16, 16 a 17 |
-| Artigo mais recente, idade | 10 h (p90 11 h, máx. 11 h) |
-| Artigos com data de publicação | 100% (82 de 82); precisão: só o dia (sem hora) |
+| Artigo mais recente, idade | 1 h (p90 11 h, máx. 11 h) |
+| Artigos com data de publicação | 100% (82 de 82); precisão: data e hora |
 | Artigos já usados antes | mediana 0%, p90 0%, máx. 0% |
 | Escreve a data no topo | não |
 | Aponta para | jornaldenegocios.pt 100% |
@@ -644,7 +637,7 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora real | mediana 14:05 (+5 min), p90 14:06 (+6 min) |
 | Artigos por edição | mediana 10, 9 a 10 |
 | Artigo mais recente, idade | — |
-| Artigos com data de publicação | 96% (24 de 25); precisão: só o dia (sem hora) |
+| Artigos com data de publicação | 96% (24 de 25); precisão: data e hora |
 | Artigos já usados antes | mediana 50%, p90 89%, máx. 89% |
 | Escreve a data no topo | não |
 | Aponta para | jornaldenegocios.pt 100% |
@@ -668,8 +661,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora prevista | 17:00 |
 | Hora real | mediana 17:04 (+4 min), p90 17:05 (+5 min) |
 | Artigos por edição | mediana 10, 9 a 10 |
-| Artigo mais recente, idade | 16 h (p90 17 h, máx. 17 h) |
-| Artigos com data de publicação | 98% (48 de 49); precisão: só o dia em jornaldenegocios.pt |
+| Artigo mais recente, idade | 9 h (p90 17 h, máx. 17 h) |
+| Artigos com data de publicação | 98% (48 de 49); precisão: data e hora |
 | Artigos já usados antes | mediana 20%, p90 30%, máx. 30% |
 | Escreve a data no topo | não é hábito (certa em 0 de 6, outra data em 1) |
 | Aponta para | jornaldenegocios.pt 98%, marketingstars.nowcanal.pt 2% |
@@ -696,8 +689,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora prevista | 12:00 |
 | Hora real | mediana 12:06 (+6 min), p90 12:07 (+7 min) |
 | Artigos por edição | mediana 12, 12 a 12 |
-| Artigo mais recente, idade | 11 h (p90 1,5 d, máx. 1,5 d) |
-| Artigos com data de publicação | 100% (63 de 63); precisão: só o dia (sem hora) |
+| Artigo mais recente, idade | 4 h (p90 19 h, máx. 19 h) |
+| Artigos com data de publicação | 100% (63 de 63); precisão: data e hora |
 | Artigos já usados antes | mediana 8%, p90 33%, máx. 33% |
 | Escreve a data no topo | não |
 | Aponta para | jornaldenegocios.pt 100% |
@@ -705,8 +698,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 Como se julga a próxima edição:
 
 - Igual a uma das 6 edições anteriores (texto, ou os mesmos artigos) → **prova**.
-- Artigo mais recente com mais de **4,4 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
-- Artigo mais recente com mais de 2,2 d (e até 4,4 d) → aviso.
+- Artigo mais recente com mais de **2,3 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
+- Artigo mais recente com mais de 1,2 d (e até 2,3 d) → aviso.
 - 80% ou mais dos artigos já usados antes → aviso.
 - Menos de 6 ou mais de 18 artigos → aviso.
 
@@ -725,7 +718,7 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora real | mediana 11:34 (+4 min), p90 11:34 (+4 min) |
 | Artigos por edição | mediana 7, 7 a 7 |
 | Artigo mais recente, idade | — |
-| Artigos com data de publicação | 100% (7 de 7); precisão: só o dia (sem hora) |
+| Artigos com data de publicação | 100% (7 de 7); precisão: data e hora |
 | Artigos já usados antes | mediana 0%, p90 0%, máx. 0% |
 | Escreve a data no topo | não |
 | Aponta para | jornaldenegocios.pt 100% |
@@ -750,7 +743,7 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora real | mediana 06:02 (+2 min), p90 06:02 (+2 min) |
 | Artigos por edição | mediana 11, 11 a 11 |
 | Artigo mais recente, idade | — |
-| Artigos com data de publicação | 91% (20 de 22); precisão: só o dia em jornaldenegocios.pt |
+| Artigos com data de publicação | 91% (20 de 22); precisão: data e hora |
 | Artigos já usados antes | mediana 0%, p90 0%, máx. 0% |
 | Escreve a data no topo | não |
 | Aponta para | jornaldenegocios.pt 95%, marketingstars.nowcanal.pt 5% |
@@ -774,8 +767,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora prevista | 20:00 |
 | Hora real | mediana 20:04 (+4 min), p90 20:09 (+9 min) |
 | Artigos por edição | mediana 14, 9 a 17 |
-| Artigo mais recente, idade | 20 h (p90 20 h, máx. 20 h) |
-| Artigos com data de publicação | 99% (66 de 67); precisão: só o dia (sem hora) |
+| Artigo mais recente, idade | 20 h (p90 21 h, máx. 21 h) |
+| Artigos com data de publicação | 99% (66 de 67); precisão: data e hora |
 | Artigos já usados antes | mediana 0%, p90 6%, máx. 6% |
 | Escreve a data no topo | não é hábito (certa em 0 de 5, outra data em 2) |
 | Aponta para | jornaldenegocios.pt 100% |
@@ -783,8 +776,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 Como se julga a próxima edição:
 
 - Igual a uma das 5 edições anteriores (texto, ou os mesmos artigos) → **prova**.
-- Artigo mais recente com mais de **2,5 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
-- Artigo mais recente com mais de 1,3 d (e até 2,5 d) → aviso.
+- Artigo mais recente com mais de **2,6 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
+- Artigo mais recente com mais de 1,3 d (e até 2,6 d) → aviso.
 - 80% ou mais dos artigos já usados antes → aviso.
 - Menos de 4 ou mais de 26 artigos → aviso.
 
@@ -802,8 +795,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora prevista | 15:00 |
 | Hora real | mediana 15:05 (+5 min), p90 15:06 (+6 min) |
 | Artigos por edição | mediana 10, 9 a 10 |
-| Artigo mais recente, idade | 15 h (p90 15 h, máx. 15 h) |
-| Artigos com data de publicação | 95% (102 de 107); precisão: só o dia em jornaldenegocios.pt |
+| Artigo mais recente, idade | 4 h (p90 14 h, máx. 15 h) |
+| Artigos com data de publicação | 95% (102 de 107); precisão: data e hora |
 | Artigos já usados antes | mediana 50%, p90 67%, máx. 80% |
 | Escreve a data no topo | não |
 | Aponta para | jornaldenegocios.pt 96%, marketingstars.nowcanal.pt 4% |
@@ -811,8 +804,8 @@ No histórico: nenhuma edição daria prova nem aviso.
 Como se julga a próxima edição:
 
 - Igual a uma das 19 edições anteriores (texto, ou os mesmos artigos) → **prova**.
-- Artigo mais recente com mais de **1,9 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
-- Artigo mais recente com mais de 1,0 d (e até 1,9 d) → aviso.
+- Artigo mais recente com mais de **1,7 d** e nada publicado desde a edição anterior → **prova**; com algo novo → aviso.
+- Artigo mais recente com mais de 1,0 d (e até 1,7 d) → aviso.
 - Mais de 87% dos artigos já usados antes → aviso.
 - Menos de 4 ou mais de 15 artigos → aviso.
 
@@ -831,7 +824,7 @@ No histórico: nenhuma edição daria prova nem aviso.
 | Hora real | mediana 15:03 (+3 min), p90 15:03 (+3 min) |
 | Artigos por edição | mediana 11, 11 a 11 |
 | Artigo mais recente, idade | — |
-| Artigos com data de publicação | 100% (11 de 11); precisão: só o dia (sem hora) |
+| Artigos com data de publicação | 100% (11 de 11); precisão: data e hora |
 | Artigos já usados antes | mediana 0%, p90 0%, máx. 0% |
 | Escreve a data no topo | não |
 | Aponta para | jornaldenegocios.pt 100% |
