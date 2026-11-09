@@ -92,12 +92,14 @@ export const NEWSLETTERS: Newsletter[] = [
     ativa: true,
   },
   // Gerido
+  // Controlo do cliente (Excel "Newsletters Horários", 09/11/2026): o cliente controla-a como "Na Revista",
+  // à 4.ª às 8h, com o mesmo nome de BO ("NL Semanal Capa"); a folha Horário ainda diz 5.ª.
   {
     id: "sabado-capa",
     marca: "Sábado",
     nome: "Capa",
     periodicidade: "dia_semana",
-    diasSemana: [4],
+    diasSemana: [3],
     diasMes: null,
     horaPrevista: "08:00",
     toleranciaMinutos: 30,
@@ -719,7 +721,7 @@ export const NEWSLETTERS: Newsletter[] = [
     marcaCorpo: "utm_campaign=c-m-o-melhor-da-semana%26utm_medium",
     ativa: true,
   },
-  // estado por confirmar no Excel (coluna dizia "37")
+  // Controlo do cliente (Excel "Newsletters Horários", 09/11/2026): marcada todas as semanas; remetente visto a 30/09.
   {
     id: "cm-indica",
     marca: "CM",
@@ -729,13 +731,13 @@ export const NEWSLETTERS: Newsletter[] = [
     diasMes: null,
     horaPrevista: "16:00",
     toleranciaMinutos: 30,
-    remetentes: [],
-    padraoRemetente: "",
+    remetentes: ["info@projetos.correiodamanha.pt"],
+    padraoRemetente: "Correio da Manhã Indica",
     padraoAssunto: "",
     marcaCorpo: "",
-    ativa: false,
+    ativa: true,
   },
-  // estado por confirmar no Excel (coluna dizia "37")
+  // Controlo do cliente (Excel "Newsletters Horários", 09/11/2026): marcada todas as semanas; chega à caixa (6 emails até 06/11).
   {
     id: "record-indica",
     marca: "Record",
@@ -745,11 +747,11 @@ export const NEWSLETTERS: Newsletter[] = [
     diasMes: null,
     horaPrevista: "16:30",
     toleranciaMinutos: 30,
-    remetentes: [],
-    padraoRemetente: "",
+    remetentes: ["info@projetos.jornalrecord.pt"],
+    padraoRemetente: "Record Indica",
     padraoAssunto: "",
     marcaCorpo: "",
-    ativa: false,
+    ativa: true,
   },
   // horário em aberto no Excel ("16h30 // 17h"); tolerância alargada até 17:00 + 1 h
   // Gerido
@@ -785,6 +787,8 @@ export const NEWSLETTERS: Newsletter[] = [
     ativa: true,
   },
   // Automática
+  // Controlo do cliente (Excel "Newsletters Horários", 09/11/2026): linha escondida (ex-assinantes), já não é controlada;
+  // nunca chegou à caixa nem tem linha na central de conta.
   {
     id: "cm-o-melhor-da-semana-2",
     marca: "CM",
@@ -798,7 +802,7 @@ export const NEWSLETTERS: Newsletter[] = [
     padraoRemetente: "",
     padraoAssunto: "",
     marcaCorpo: "",
-    ativa: true,
+    ativa: false,
   },
   // Automático
   {
@@ -817,6 +821,7 @@ export const NEWSLETTERS: Newsletter[] = [
     ativa: true,
   },
   // Gerido
+  // Controlo do cliente (Excel "Newsletters Horários", 09/11/2026): marcada 6 (Desativada) em todos os dias desde 29/09.
   {
     id: "flash-life-style",
     marca: "Flash",
@@ -830,7 +835,7 @@ export const NEWSLETTERS: Newsletter[] = [
     padraoRemetente: "",
     padraoAssunto: "",
     marcaCorpo: "",
-    ativa: true,
+    ativa: false,
   },
   // Automático
   {
@@ -1007,6 +1012,70 @@ export const NEWSLETTERS: Newsletter[] = [
     diasSemana: null,
     diasMes: [1],
     horaPrevista: "12:00",
+    toleranciaMinutos: 30,
+    remetentes: [],
+    padraoRemetente: "",
+    padraoAssunto: "",
+    marcaCorpo: "",
+    ativa: true,
+  },
+  // Controlo do cliente (Excel "Newsletters Horários", 09/11/2026): não estava configurada; chega à caixa (6 emails até 05/11).
+  {
+    id: "flash-indica",
+    marca: "Flash",
+    nome: "Indica",
+    periodicidade: "dia_semana",
+    diasSemana: [4],
+    diasMes: null,
+    horaPrevista: "20:00",
+    toleranciaMinutos: 30,
+    remetentes: ["info@news.flash.pt"],
+    padraoRemetente: "FLASH! Indica",
+    padraoAssunto: "",
+    marcaCorpo: "",
+    ativa: true,
+  },
+  // Controlo do cliente (Excel "Newsletters Horários", 09/11/2026): não estava configurada; nunca chegou à caixa (falta inscrever).
+  {
+    id: "tvguia-noticias-do-dia",
+    marca: "TV Guia",
+    nome: "Notícias do dia",
+    periodicidade: "diaria",
+    diasSemana: null,
+    diasMes: null,
+    horaPrevista: "10:30",
+    toleranciaMinutos: 30,
+    remetentes: [],
+    padraoRemetente: "",
+    padraoAssunto: "",
+    marcaCorpo: "",
+    ativa: true,
+  },
+  // Controlo do cliente (Excel "Newsletters Horários", 09/11/2026): não estava configurada; nunca chegou à caixa (falta inscrever).
+  {
+    id: "tvguia-novelas",
+    marca: "TV Guia",
+    nome: "Novelas",
+    periodicidade: "dia_semana",
+    diasSemana: [1],
+    diasMes: null,
+    horaPrevista: "17:30",
+    toleranciaMinutos: 30,
+    remetentes: [],
+    padraoRemetente: "",
+    padraoAssunto: "",
+    marcaCorpo: "",
+    ativa: true,
+  },
+  // Controlo do cliente (Excel "Newsletters Horários", 09/11/2026): não estava configurada; nunca chegou à caixa (falta inscrever).
+  {
+    id: "tvguia-receitas",
+    marca: "TV Guia",
+    nome: "Receitas",
+    periodicidade: "dia_semana",
+    diasSemana: [4],
+    diasMes: null,
+    horaPrevista: "11:00",
     toleranciaMinutos: 30,
     remetentes: [],
     padraoRemetente: "",

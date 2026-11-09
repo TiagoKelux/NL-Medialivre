@@ -101,7 +101,7 @@ test("nenhuma edição passa por marketing (0 falsos positivos)", () => {
 
 test("fora do âmbito do classificador: outros endereços, promoções e textos longos", () => {
   // Endereço que não é de nenhuma edição configurada.
-  assert.equal(eNaoEdicaoDoEditor(crm("x"), "Record <info@projetos.jornalrecord.pt>"), false);
+  assert.equal(eNaoEdicaoDoEditor(crm("x"), "Record <info@lojas.jornalrecord.pt>"), false);
   assert.equal(eNaoEdicaoDoEditor(crm("x"), "Google <no-reply@accounts.google.com>"), false);
   // Comércio afiliado: não é campanha de CRM.
   assert.equal(eNaoEdicaoDoEditor(INDICA, "FLASH! Indica <info@news.flash.pt>"), false);

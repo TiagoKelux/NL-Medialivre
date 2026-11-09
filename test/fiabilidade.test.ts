@@ -81,9 +81,10 @@ test("emails reais caem na newsletter certa", () => {
     ["Máxima Fim de Semana <info@news.maxima.pt>", "Caso Cornell", anuncio("MAXIMA", "FIM_DE_SEMANA"), "maxima-fim-de-semana"],
     // Grupo de controlo (paga, sem regra): a edição chegou, mas não se atribui.
     ["Record Premium <info@assinaturas.jornalrecord.pt>", "A crónica do Dinamarca-Portugal", "<p>versão online premium</p>", null],
-    // Comércio afiliado: fora de âmbito.
-    ["Correio da Manhã Indica <info@projetos.correiodamanha.pt>", "Este é o gadget", corpoSemAnuncio, null],
-    ["FLASH! Indica <info@news.flash.pt>", "Descobrimos os ténis", corpoSemAnuncio, null],
+    // Comércio afiliado: o cliente controla-as no Excel (09/11/2026), por isso contam.
+    ["Correio da Manhã Indica <info@projetos.correiodamanha.pt>", "Este é o gadget", corpoSemAnuncio, "cm-indica"],
+    ["FLASH! Indica <info@news.flash.pt>", "Descobrimos os ténis", corpoSemAnuncio, "flash-indica"],
+    ["Record Indica <info@projetos.jornalrecord.pt>", "Purificador de ar", corpoSemAnuncio, "record-indica"],
     // Endereço desconhecido
     ["Google <no-reply@accounts.google.com>", "Alerta de segurança", corpoSemAnuncio, null],
   ];
@@ -818,7 +819,7 @@ test("fusão: o ficheiro é a base, o painel só acrescenta", () => {
 });
 
 test("atribuir no painel: grava a regra, reclassifica e reavalia o dia", () => {
-  const dia = "2026-10-15"; // quinta-feira: dia da Sábado · Capa
+  const dia = "2026-10-14"; // quarta-feira: dia da Sábado · Capa ("Na Revista")
   registos.gerarDia(dia);
   assert.ok(!estaConfigurada(nl("sabado-capa")));
   const edicao = gravarComCorpo(SABADO, "A capa desta semana", lisboa(dia, "08:05"), `<p>capa</p>${anuncio("SABADO", "CAPA")}`);
@@ -919,7 +920,7 @@ test("remover a regra do painel repõe o ficheiro e reavalia", () => {
   const edicao = db().prepare(`SELECT id FROM emails WHERE assunto = 'A capa desta semana'`).get() as { id: number };
   assert.equal(nidDe(edicao.id), null);
   const reg = db()
-    .prepare(`SELECT nr_ocorrencias FROM registos WHERE newsletter_id = 'sabado-capa' AND data_prevista = '2026-10-15'`)
+    .prepare(`SELECT nr_ocorrencias FROM registos WHERE newsletter_id = 'sabado-capa' AND data_prevista = '2026-10-14'`)
     .get() as { nr_ocorrencias: number };
   assert.equal(reg.nr_ocorrencias, 0);
   assert.equal(regras.ultimasAlteracoes(1)[0].acao, "Regra removida");
