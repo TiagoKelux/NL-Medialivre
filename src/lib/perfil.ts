@@ -32,6 +32,10 @@ import { diaMes, paraIso } from "./tempo.ts";
  * em qualquer edição anterior, reaproveitamento e número de artigos fora do
  * costume.
  *
+ * Para recalibrar depois de mexer nos limites: `npm run calibrar-perfis`
+ * (sai com 1 se alguma edição do histórico ganhar prova). O mapa por
+ * newsletter (docs/PERFIS-NEWSLETTERS.md) gera-se com `npm run mapa-perfis`.
+ *
  * Calibrado a 09/11/2026 sobre as 329 edições de 29/09 a 08/11 (2681 artigos
  * datados): nenhuma edição legítima daria prova. A idade MEDIANA não serve —
  * o Negócios 5 Coisas aponta para artigos de contexto de há semanas ao lado
@@ -50,7 +54,18 @@ export const LIMITE_MIN_DIAS = 1;
 export const FATOR_IDADE = 3;
 /** Sem perfil ainda: só aviso, acima disto. */
 export const AVISO_SEM_PERFIL_DIAS = 30;
-const MIN_ARTIGOS = 3;
+/** Artigos mínimos para "os mesmos artigos" e para o aviso de reaproveitamento. */
+export const MIN_ARTIGOS = 3;
+/** Aviso: o mais recente acima de max(1 dia, FATOR_AVISO_IDADE × o máximo do perfil). */
+export const FATOR_AVISO_IDADE = 1.5;
+/** Aviso de reaproveitamento: pelo menos REUSO_MINIMO e acima do p90 + REUSO_MARGEM. */
+export const REUSO_MINIMO = 0.8;
+export const REUSO_MARGEM = 0.2;
+/** Aviso de nº de artigos: abaixo de min × ARTIGOS_ABAIXO ou acima de max × ARTIGOS_ACIMA. */
+export const ARTIGOS_ABAIXO = 0.5;
+export const ARTIGOS_ACIMA = 1.5;
+/** "Escreve sempre a data no topo": certa em pelo menos esta fração das edições. */
+export const HABITO_DATA_TOPO = 0.9;
 
 export interface EdicaoVista {
   data: string;
@@ -158,7 +173,7 @@ export function perfilDe(hist: EdicaoVista[]): Perfil {
         ? { edicoes: medidas.length, p50: mediana(medidas), p90: quantil(medidas, 0.9), max: Math.max(...medidas) }
         : null,
     reusoP90: reusos.length >= MIN_EDICOES_PERFIL ? quantil(reusos, 0.9) : null,
-    dataNoTopo: hist.length >= MIN_EDICOES_PERFIL && certas / hist.length >= 0.9,
+    dataNoTopo: hist.length >= MIN_EDICOES_PERFIL && certas / hist.length >= HABITO_DATA_TOPO,
   };
 }
 
@@ -215,7 +230,7 @@ export function sinaisConteudo(atual: EdicaoVista, hist: EdicaoVista[]): SinaisC
           `${base} — nada publicado desde a edição anterior (${diaMes(anterior?.data ?? atual.data)}); ${normal} → conteúdo desatualizado.`;
       } else if (med > limite) {
         s.avisos.push(`⚠ ${base}: mais velho do que o costume (${normal}), mas posterior à edição anterior.`);
-      } else if (med > Math.max(1, 1.5 * perfil.idade.max)) {
+      } else if (med > Math.max(1, FATOR_AVISO_IDADE * perfil.idade.max)) {
         s.avisos.push(`⚠ ${base}: mais velho do que em qualquer edição anterior (${normal}).`);
       } else {
         s.idade = `${base}; ${normal} ✓`;
@@ -239,7 +254,7 @@ export function sinaisConteudo(atual: EdicaoVista, hist: EdicaoVista[]): SinaisC
   if (perfil.reusoP90 !== null && atual.artigos.length >= MIN_ARTIGOS) {
     const vistos = new Set(hist.flatMap((e) => e.artigos));
     const r = reusoDe(atual, vistos);
-    if (r >= 0.8 && r > perfil.reusoP90 + 0.2) {
+    if (r >= REUSO_MINIMO && r > perfil.reusoP90 + REUSO_MARGEM) {
       s.avisos.push(
         `⚠ ${Math.round(r * 100)}% dos artigos já tinham saído em edições anteriores ` +
           `(o costume é até ${Math.round(perfil.reusoP90 * 100)}%).`,
@@ -248,7 +263,7 @@ export function sinaisConteudo(atual: EdicaoVista, hist: EdicaoVista[]): SinaisC
   }
   if (perfil.artigos && atual.artigos.length > 0) {
     const { min, max } = perfil.artigos;
-    if (atual.artigos.length < Math.floor(min / 2) || atual.artigos.length > Math.ceil(max * 1.5)) {
+    if (atual.artigos.length < Math.floor(min * ARTIGOS_ABAIXO) || atual.artigos.length > Math.ceil(max * ARTIGOS_ACIMA)) {
       s.avisos.push(`⚠ ${atual.artigos.length} artigos (o costume é ${min} a ${max}).`);
     }
   }

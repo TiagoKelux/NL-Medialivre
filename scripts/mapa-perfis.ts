@@ -12,8 +12,15 @@ import { resolve } from "node:path";
 import { NEWSLETTERS } from "../config/newsletters.ts";
 import { publicadoEm } from "../src/lib/datas-artigos.ts";
 import {
+  ARTIGOS_ABAIXO,
+  ARTIGOS_ACIMA,
   AVISO_SEM_PERFIL_DIAS,
   COBERTURA_MINIMA,
+  FATOR_AVISO_IDADE,
+  HABITO_DATA_TOPO,
+  MIN_ARTIGOS,
+  REUSO_MARGEM,
+  REUSO_MINIMO,
   DIAS_DE_HISTORICO,
   FATOR_IDADE,
   LIMITE_MIN_DIAS,
@@ -43,20 +50,13 @@ import {
   type EdicaoAvaliada,
 } from "./perfis-dados.ts";
 
-/**
- * Limiares que perfil.ts usa sem os exportar. TÊM de ser iguais aos de
- * `sinaisConteudo` e `perfilDe`; se lá mudarem, mudar aqui.
- */
+/** Os limites vêm do próprio perfil.ts: o mapa não pode divergir do código. */
 const ESPELHO = {
-  /** Artigos mínimos para "os mesmos artigos" e para o aviso de reaproveitamento. */
-  minArtigos: 3,
-  /** Aviso: mais recente acima de max(1 dia, FATOR_MAX × máximo do perfil). */
-  fatorMax: 1.5,
-  /** Aviso de reaproveitamento: pelo menos isto e acima do p90 + margem. */
-  reusoMinimo: 0.8,
-  reusoMargem: 0.2,
-  /** "Escreve sempre a data no topo": certa em pelo menos esta fração. */
-  habitoTopo: 0.9,
+  minArtigos: MIN_ARTIGOS,
+  fatorMax: FATOR_AVISO_IDADE,
+  reusoMinimo: REUSO_MINIMO,
+  reusoMargem: REUSO_MARGEM,
+  habitoTopo: HABITO_DATA_TOPO,
 };
 
 const args = process.argv.slice(2);
@@ -111,7 +111,7 @@ function limiares(p: Perfil) {
     prova: p.idade ? Math.max(LIMITE_MIN_DIAS, FATOR_IDADE * p.idade.p90) : null,
     aviso: p.idade ? Math.max(1, ESPELHO.fatorMax * p.idade.max) : null,
     reuso: p.reusoP90 !== null ? Math.max(ESPELHO.reusoMinimo, p.reusoP90 + ESPELHO.reusoMargem) : null,
-    artigos: p.artigos ? { abaixo: Math.floor(p.artigos.min / 2), acima: Math.ceil(p.artigos.max * 1.5) } : null,
+    artigos: p.artigos ? { abaixo: Math.floor(p.artigos.min * ARTIGOS_ABAIXO), acima: Math.ceil(p.artigos.max * ARTIGOS_ACIMA) } : null,
   };
 }
 
