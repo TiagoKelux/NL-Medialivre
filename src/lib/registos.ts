@@ -437,6 +437,10 @@ export interface Celula {
   limitePassou: boolean;
   temConteudo: boolean;
   ressalva: Ressalva | null;
+  /** Minutos depois da hora limite (0 = dentro da janela); null sem email. */
+  atrasoMinutos: number | null;
+  /** Hora local (HH:MM) a que chegou o 1.º envio; null sem email. */
+  horaRecebida: string | null;
 }
 
 export interface Matriz {
@@ -470,6 +474,8 @@ export function matriz(dias: string[]): Matriz {
           limitePassou: limitePassou(r, agora),
           temConteudo: comConteudo.has(`${n.id}|${d}`),
           ressalva: r.ressalva ?? null,
+          atrasoMinutos: r.atraso_minutos ?? null,
+          horaRecebida: r.hora_recebida ? horaLocal(new Date(r.hora_recebida)) : null,
         };
       }),
     })),

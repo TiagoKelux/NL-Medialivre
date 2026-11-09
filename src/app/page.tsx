@@ -22,6 +22,7 @@ import Painel, {
   type LinhaDia,
   type LinhaMatriz,
 } from "../components/Painel.tsx";
+import { duracao } from "../lib/classificacao.ts";
 
 // A página lê o estado atual da base de dados a cada pedido.
 export const dynamic = "force-dynamic";
@@ -63,7 +64,7 @@ export default async function Pagina({
       atraso:
         l.atraso_minutos === null || l.atraso_minutos === 0
           ? null
-          : `${l.atraso_minutos} min`,
+          : duracao(l.atraso_minutos),
       codigo: l.codigo_estado,
       detalhe: l.detalhe,
       fechado: l.fechado === 1,

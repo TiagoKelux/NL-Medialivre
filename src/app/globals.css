@@ -257,6 +257,10 @@ section > h2 {
 .celula.controlo { background: var(--c5-fundo); color: var(--c5); }
 .celula.sem-prova { background: var(--c6-fundo); color: var(--c6); border: 1px dashed var(--c5); }
 .celula.sem-comparacao { background: var(--c1-fundo); color: var(--c1); border: 1px dashed var(--c1); }
+/* O tamanho do atraso (a dica diz quanto): mais escuro quanto maior. */
+.celula.atraso-1 { box-shadow: inset 0 -2px 0 var(--c2); }
+.celula.atraso-2 { box-shadow: inset 0 -4px 0 var(--c2); }
+.celula.atraso-3 { box-shadow: inset 0 0 0 2px var(--c2); font-weight: 700; }
 
 .celula.ausente {
   color: var(--borda);
