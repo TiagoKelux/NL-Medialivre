@@ -10,8 +10,15 @@ import { motivosSemProva } from "./prova.ts";
 import { estadoLeitura } from "./leitura.ts";
 import { extrairArtigos, processarCorpo } from "./conteudo.ts";
 import { edicaoDoEmail, historico, sinaisConteudo } from "./perfil.ts";
-import { dataLocal, horaLocal, paraInstante, paraIso, somarDias, somarMinutos, ultimosDias } from "./tempo.ts";
-import type { CodigoEstado, Newsletter, Periodicidade, Registo, Ressalva } from "./tipos.ts";
+import { dataLocal, diaMes, horaLocal, paraInstante, paraIso, somarDias, somarMinutos, ultimosDias } from "./tempo.ts";
+import { DESIGNACOES, type CodigoEstado, type Newsletter, type Periodicidade, type Registo, type Ressalva } from "./tipos.ts";
+import { codigoDaMarca, marcaDoCliente } from "./controlo-cliente.ts";
+
+/** "09/11 às 10:35", hora de Lisboa. */
+function diaMesDe(isoUtc: string): string {
+  const d = new Date(isoUtc);
+  return `${diaMes(dataLocal(d))} às ${horaLocal(d)}`;
+}
 
 /**
  * Tudo o que cria e atualiza linhas em `registos`.
@@ -258,21 +265,55 @@ export function reavaliar(
     }
   }
 
+  // Nada na nossa caixa: o controlo manual do cliente (controlo-cliente.ts),
+  // se tiver este dia, é a segunda caixa. Com email, vale o que medimos.
+  let codigo: CodigoEstado = r.codigo;
+  let fonte: "cliente" | null = null;
+  const cliente = r.nrOcorrencias === 0 && horaLimite <= agora ? marcaDoCliente(n.id, data) : null;
+  if (cliente) {
+    const importado = `${diaMesDe(cliente.importado_em)}`;
+    const c = codigoDaMarca(cliente.valor);
+    if (c !== 5 && c !== 6) {
+      codigo = c;
+      fonte = "cliente";
+      fechado = 1;
+      ressalva = null;
+      detalhe =
+        `Não chegou à caixa do monitor, mas o controlo manual do cliente (importado a ${importado}) marca ` +
+        `${cliente.valor} «${cliente.valor === 7 ? "Saiu Errada" : DESIGNACOES[c]}» → conta como saída. ` +
+        `Hora e conteúdo não medidos pelo monitor.`;
+    } else if (c === 5 && r.codigo === 5) {
+      fonte = "cliente";
+      fechado = 1;
+      ressalva = null;
+      detalhe =
+        `Nada recebido até ao limite das ${horaLocal(horaLimite)}, nem na caixa do monitor nem na do cliente ` +
+        `(controlo importado a ${importado}) → Não Saiu.`;
+    } else if (c === 6 && r.codigo !== 6) {
+      codigo = 6;
+      fonte = "cliente";
+      fechado = 1;
+      ressalva = null;
+      detalhe = `Sem email. O controlo manual do cliente (importado a ${importado}) marca «${DESIGNACOES[6]}» neste dia.`;
+    }
+  }
+
   bd.prepare(
     `UPDATE registos
         SET hora_limite = ?, hora_recebida = ?, atraso_minutos = ?, codigo_estado = ?,
-            nr_ocorrencias = ?, detalhe = ?, fechado = ?, ressalva = ?, calendario = ?
+            nr_ocorrencias = ?, detalhe = ?, fechado = ?, ressalva = ?, calendario = ?, fonte = ?
       WHERE id = ?`,
   ).run(
     paraIso(horaLimite),
     r.horaRecebida ? paraIso(r.horaRecebida) : null,
     r.atrasoMinutos,
-    r.codigo,
+    codigo,
     r.nrOcorrencias,
     detalhe,
     fechado,
     ressalva,
     JSON.stringify(calendarioDe(n)),
+    fonte,
     existente.id,
   );
 
@@ -441,6 +482,8 @@ export interface Celula {
   atrasoMinutos: number | null;
   /** Hora local (HH:MM) a que chegou o 1.º envio; null sem email. */
   horaRecebida: string | null;
+  /** "cliente": o estado vem do controlo manual do cliente, não da nossa caixa. */
+  fonte: "cliente" | null;
 }
 
 export interface Matriz {
@@ -476,6 +519,7 @@ export function matriz(dias: string[]): Matriz {
           ressalva: r.ressalva ?? null,
           atrasoMinutos: r.atraso_minutos ?? null,
           horaRecebida: r.hora_recebida ? horaLocal(new Date(r.hora_recebida)) : null,
+          fonte: r.fonte === "cliente" ? "cliente" : null,
         };
       }),
     })),

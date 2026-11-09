@@ -73,6 +73,7 @@ export default async function Pagina({
       diasSemana: l.dias_semana,
       temConteudo: l.tem_conteudo,
       ressalva: l.ressalva ?? null,
+      fonte: l.fonte ?? null,
     };
   });
 

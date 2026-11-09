@@ -16,7 +16,8 @@ import { DESIGNACOES, type CodigoEstado, type Ressalva } from "./tipos.ts";
  *   caixa depois dela (monitor parado, PC desligado, leitura a falhar);
  * - "sem-comparacao": chegou (código 1) mas não havia edição anterior
  *   comparável — "conteúdo atualizado" não está provado.
- * O código 6 (não é dia, desativada) mostra-se sempre como está.
+ * O código 6 (não é dia, desativada) mostra-se sempre como está, e um estado
+ * que vem do controlo manual do cliente (`fonte`) também — com a marca "C".
  */
 export type Variante =
   | "sem-email"
@@ -35,10 +36,12 @@ export interface Factos {
   /** Newsletter paga (premium). Só informativo: segue as mesmas regras. */
   paga?: boolean;
   ressalva: Ressalva | null;
+  /** O estado vem do controlo manual do cliente: mostra-se o código dele. */
+  fonte?: "cliente" | null;
 }
 
 export function variante(f: Factos): Variante {
-  if (f.codigo === 6) return null;
+  if (f.codigo === 6 || f.fonte === "cliente") return null;
   if (f.semEmail) return "sem-email";
   if (!f.fechado && f.codigo === 5) {
     if (!f.limitePassou) return "aguarda";

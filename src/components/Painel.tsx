@@ -48,6 +48,8 @@ export interface LinhaDia extends Cadencia {
   limitePassou: boolean;
   temConteudo: boolean;
   ressalva: Ressalva | null;
+  /** "cliente": o estado vem do controlo manual do cliente. */
+  fonte: "cliente" | null;
 }
 
 export interface DiaMatriz {
@@ -70,6 +72,8 @@ export interface CelulaMatriz {
   ressalva: Ressalva | null;
   atrasoMinutos: number | null;
   horaRecebida: string | null;
+  /** "cliente": o estado vem do controlo manual do cliente (marca "C"). */
+  fonte: "cliente" | null;
 }
 
 /** "45 min", "1 h 2 min", "2 d 4 h" — o tamanho do atraso, para a dica da célula. */
@@ -521,7 +525,8 @@ export default function Painel({ hoje, leitura, listasEmSilencio, reconquistas, 
           </Link>
         </p>
         <p className="soltos">
-          <Link href="/fichas">Fichas das newsletters: o normal de cada uma e a última edição ›</Link>
+          <Link href="/fichas">Fichas das newsletters: o normal de cada uma e a última edição ›</Link>{" · "}
+          <Link href="/controlo">Controlo do cliente: carregar o Excel e comparar ›</Link>
         </p>
       </header>
 
@@ -671,7 +676,7 @@ export default function Painel({ hoje, leitura, listasEmSilencio, reconquistas, 
                         </td>
                       )}
                       <td>
-                        <Estado codigo={l.codigo} variante={variante({ codigo: l.codigo, fechado: l.fechado, limitePassou: l.limitePassou, semEmail: l.semEmail, paga: l.paga, ressalva: l.ressalva })} />
+                        <Estado codigo={l.codigo} variante={variante({ codigo: l.codigo, fechado: l.fechado, limitePassou: l.limitePassou, semEmail: l.semEmail, paga: l.paga, ressalva: l.ressalva, fonte: l.fonte })} />
                       </td>
                     </tr>
                   );
@@ -732,15 +737,15 @@ export default function Painel({ hoje, leitura, listasEmSilencio, reconquistas, 
                             </td>
                           );
                         }
-                        const v = variante({ codigo: c.codigo, fechado: c.fechado, limitePassou: c.limitePassou, semEmail: l.semEmail, paga: l.paga, ressalva: c.ressalva });
-                        const designacao = v ? ROTULO[v].texto : DESIGNACOES[c.codigo];
+                        const v = variante({ codigo: c.codigo, fechado: c.fechado, limitePassou: c.limitePassou, semEmail: l.semEmail, paga: l.paga, ressalva: c.ressalva, fonte: c.fonte });
+                        const designacao = v ? ROTULO[v].texto : `${DESIGNACOES[c.codigo]}${c.fonte === "cliente" ? " (controlo do cliente)" : ""}`;
                         return (
                           <td key={chave} className={borda}>
                             <button
                               type="button"
                               className={`celula ${v ?? `cod-${c.codigo}`} ${c.fechado ? "" : "aberta"} ${
                                 c.temConteudo ? "com-conteudo" : ""
-                              } ${ativa === chave ? "ativa" : ""} ${grauAtraso(c.atrasoMinutos)}`}
+                              } ${ativa === chave ? "ativa" : ""} ${grauAtraso(c.atrasoMinutos)} ${c.fonte === "cliente" ? "do-cliente" : ""}`}
                               title={dicaCelula(dia.rotulo, designacao, c)}
                               onMouseEnter={(ev) =>
                                 aoEntrar(ev, l.newsletterId, dia.data, c.detalhe, c.temConteudo)

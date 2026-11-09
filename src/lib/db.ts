@@ -108,6 +108,36 @@ export function db(): Database.Database {
      )`,
   );
 
+  // O controlo manual do cliente (controlo-cliente.ts): a marca do Excel
+  // por newsletter e dia, e cada importação. `registos.fonte` = "cliente"
+  // quando o estado vem dessa marca e não da nossa caixa.
+  bd.exec(
+    `CREATE TABLE IF NOT EXISTS controlo_cliente (
+       newsletter_id TEXT NOT NULL,
+       data          TEXT NOT NULL,
+       valor         INTEGER NOT NULL,
+       folha         TEXT,
+       linha         INTEGER,
+       importado_em  TEXT NOT NULL,
+       PRIMARY KEY (newsletter_id, data)
+     )`,
+  );
+  bd.exec(
+    `CREATE TABLE IF NOT EXISTS controlo_importacoes (
+       id           INTEGER PRIMARY KEY AUTOINCREMENT,
+       importado_em TEXT NOT NULL,
+       ficheiro     TEXT NOT NULL,
+       quem         TEXT,
+       marcas       INTEGER NOT NULL,
+       alteradas    INTEGER NOT NULL,
+       resumo       TEXT NOT NULL
+     )`,
+  );
+  const colunasRegistos = bd.prepare(`PRAGMA table_info(registos)`).all() as { name: string }[];
+  if (!colunasRegistos.some((c) => c.name === "fonte")) {
+    bd.exec(`ALTER TABLE registos ADD COLUMN fonte TEXT DEFAULT NULL`);
+  }
+
   ligacao = bd;
   versaoAplicada = -1;
   sincronizarRegras(bd);

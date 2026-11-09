@@ -117,6 +117,11 @@ export interface Registo {
   ressalva: Ressalva | null;
   /** O calendário da newsletter nesse dia, em JSON (`newsletterNoDia`). */
   calendario: string | null;
+  /**
+   * "cliente" quando o estado vem do controlo manual do cliente
+   * (controlo-cliente.ts) e não da nossa caixa; null nos outros.
+   */
+  fonte?: "cliente" | null;
 }
 
 export type Ressalva = "sem-prova" | "sem-comparacao";

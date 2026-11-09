@@ -63,12 +63,14 @@ export function GET(pedido: Request) {
       limitePassou: r.fechado === 0 && new Date(r.hora_limite) <= agora,
       semEmail: !n || !estaConfigurada(n),
       ressalva: r.ressalva ?? null,
+      fonte: r.fonte ?? null,
     });
     if (v === null) return null;
     return { simbolo: ROTULO[v].digito, texto: ROTULO[v].texto };
   };
   const estadoDe = (r: Registo): string =>
-    especial(r)?.texto ?? DESIGNACOES[r.codigo_estado as CodigoEstado] ?? "";
+    especial(r)?.texto ??
+    `${DESIGNACOES[r.codigo_estado as CodigoEstado] ?? ""}${r.fonte === "cliente" ? " (controlo do cliente)" : ""}`;
 
   const indice = new Map<string, Registo>();
   for (const r of registos) indice.set(`${r.newsletter_id}|${r.data_prevista}`, r);
