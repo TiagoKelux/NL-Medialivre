@@ -19,8 +19,13 @@ import { paraIso } from "./tempo.ts";
  * ciclo de 5 minutos, dois de cada vez.
  */
 
-/** Só os artigos dos emails destes últimos dias se vão buscar. */
+/**
+ * Primeiro os artigos dos emails destes últimos dias (as edições a decidir);
+ * com o que sobrar de cada ciclo, os do histórico até DIAS_DE_HISTORICO, mais
+ * recentes primeiro — numa base nova o perfil enche-se sozinho, aos poucos.
+ */
 export const DIAS_A_RECOLHER = 3;
+export const DIAS_DE_HISTORICO = 90;
 export const POR_CICLO = 40;
 export const MAXIMO_TENTATIVAS = 4;
 const EM_PARALELO = 2;
@@ -98,26 +103,31 @@ export async function recolherDatasArtigos(
 ): Promise<ResumoDatas> {
   const resumo: ResumoDatas = { pedidos: 0, comData: 0, emails: [] };
   const bd = db();
-  const desde = paraIso(new Date(agora.getTime() - DIAS_A_RECOLHER * 86_400_000));
+  const desde = paraIso(new Date(agora.getTime() - DIAS_DE_HISTORICO * 86_400_000));
+  const recente = paraIso(new Date(agora.getTime() - DIAS_A_RECOLHER * 86_400_000));
   const emails = bd
     .prepare(
-      `SELECT id FROM emails INDEXED BY idx_emails_identificacao
+      `SELECT id, recebido_em FROM emails INDEXED BY idx_emails_identificacao
         WHERE recebido_em >= ? AND newsletter_id IS NOT NULL ORDER BY recebido_em DESC`,
     )
-    .all(desde) as { id: number }[];
+    .all(desde) as { id: number; recebido_em?: string }[];
 
   const estadoDe = bd.prepare(`SELECT estado, tentativas, pedido_em FROM artigos WHERE url = ?`);
   const porUrl = new Map<string, number[]>();
-  for (const { id } of emails) {
+  const recentes = new Set<string>();
+  for (const { id, recebido_em } of emails) {
     for (const u of artigosDoEmail(id)) {
       const l = estadoDe.get(u) as { estado: number; tentativas: number; pedido_em: string | null } | undefined;
       if (l && (l.estado === 200 || l.estado === 404 || l.estado === 410 || l.tentativas >= MAXIMO_TENTATIVAS)) continue;
       // Uma falha espera 30 min antes de voltar a tentar.
       if (l?.pedido_em && agora.getTime() - Date.parse(l.pedido_em) < 30 * 60_000) continue;
       porUrl.set(u, [...(porUrl.get(u) ?? []), id]);
+      if (recebido_em && recebido_em >= recente) recentes.add(u);
     }
   }
-  const fila = [...porUrl.keys()].slice(0, POR_CICLO);
+  // Os recentes à frente; o histórico (já por ordem, mais recente primeiro) a seguir.
+  const todos = [...porUrl.keys()];
+  const fila = [...todos.filter((u) => recentes.has(u)), ...todos.filter((u) => !recentes.has(u))].slice(0, POR_CICLO);
   const gravar = bd.prepare(
     `INSERT INTO artigos (url, publicado_em, estado, tentativas, pedido_em) VALUES (?, ?, ?, 1, ?)
      ON CONFLICT(url) DO UPDATE SET publicado_em = COALESCE(excluded.publicado_em, artigos.publicado_em),

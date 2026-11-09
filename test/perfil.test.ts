@@ -70,14 +70,15 @@ function gravarEmail(msgId: string, newsletterId: string, quando: Date, caminhos
   return Number(r.lastInsertRowid);
 }
 
-test("recolha das datas: pede cada artigo uma vez, guarda a data e repete as falhas depois de esperar", async () => {
+test("recolha das datas: recentes primeiro, depois o histórico; cada artigo uma vez; falhas repetidas depois de esperar", async () => {
   const agora = new Date();
   const a1 = "futebol/detalhe/benfica-vence-o-porto-no-classico";
   const a2 = "futebol/detalhe/sporting-supera-os-200-mil-socios";
   const a3 = "futebol/detalhe/artigo-que-falha-a-primeira-vez";
   const id1 = gravarEmail("<d1@t>", "record-geral", new Date(agora.getTime() - 3_600_000), [a1, a2]);
   const id2 = gravarEmail("<d2@t>", "record-geral", new Date(agora.getTime() - 1_800_000), [a2, a3]);
-  gravarEmail("<d3@t>", "record-geral", new Date(agora.getTime() - 10 * 86_400_000), ["futebol/detalhe/antigo-fora-da-janela"]);
+  const id3 = gravarEmail("<d3@t>", "record-geral", new Date(agora.getTime() - 10 * 86_400_000), ["futebol/detalhe/antigo-do-historico"]);
+  gravarEmail("<d5@t>", "record-geral", new Date(agora.getTime() - 120 * 86_400_000), ["futebol/detalhe/velho-fora-dos-90-dias"]);
 
   const pedidos: string[] = [];
   let falhar = true;
@@ -91,10 +92,11 @@ test("recolha das datas: pede cada artigo uma vez, guarda a data e repete as fal
   };
 
   const r1 = await recolherDatasArtigos(agora, pedir);
-  assert.equal(r1.pedidos, 3, "três artigos distintos nos emails dos últimos dias; o antigo fica de fora");
-  assert.equal(r1.comData, 2);
-  assert.deepEqual(new Set(r1.emails), new Set([id1, id2]));
-  assert.ok(!pedidos.some((u) => u.includes("antigo")));
+  assert.equal(r1.pedidos, 4, "três artigos dos últimos dias e um do histórico; o de há 120 dias fica de fora");
+  assert.ok(pedidos.at(-1)!.includes("antigo-do-historico"), "o histórico vem depois dos recentes");
+  assert.ok(!pedidos.some((u) => u.includes("fora-dos-90-dias")));
+  assert.equal(r1.comData, 3);
+  assert.deepEqual(new Set(r1.emails), new Set([id1, id2, id3]));
   assert.equal(publicadoEm(`record.pt/${a1}`), Date.parse("2026-11-08T07:00:00Z"));
 
   // Logo a seguir: nada a pedir (os bons estão feitos, a falha espera 30 min).
