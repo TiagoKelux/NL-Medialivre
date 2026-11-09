@@ -286,3 +286,14 @@ test("a edição de ontem reenviada hoje numa newsletter fresca (Record) → pro
   const s = sinaisConteudo(reenviada, hist);
   assert.match(s.desatualizada ?? "", /nada publicado desde a edição anterior/);
 });
+
+test("histórico: inclui a edição de ontem (a imediatamente anterior), nunca a do próprio dia", async () => {
+  const { historico } = await import("../src/lib/perfil.ts");
+  const nl = newsletterPorId("record-premium")!;
+  const quando = (d: string) => paraInstante(d, "07:04");
+  for (const d of ["2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23"]) {
+    gravarEmail(`<h-${d}@t>`, "record-premium", quando(d), [`desporto/detalhe/artigo-do-dia-${d}`]);
+  }
+  const datas = historico(nl, "2026-10-23").map((e) => e.data);
+  assert.deepEqual(datas, ["2026-10-20", "2026-10-21", "2026-10-22"]);
+});

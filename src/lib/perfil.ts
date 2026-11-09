@@ -95,7 +95,9 @@ export function edicaoDoEmail(n: Newsletter, id: number, recebido: string): Edic
 
 /** As edições anteriores a `data` (o primeiro email de cada), mais antigas primeiro. */
 export function historico(n: Newsletter, data: string, dias = DIAS_DE_HISTORICO): EdicaoVista[] {
-  const { inicio } = intervaloDeBusca(data);
+  // Até ao fim da janela de busca de `data` (folgada), e o filtro por
+  // `dataEdicao` deixa só as edições ANTERIORES — incluindo a de ontem.
+  const { inicio, fim } = intervaloDeBusca(data);
   const desde = new Date(inicio.getTime() - dias * 86_400_000);
   const linhas = db()
     .prepare(
@@ -103,7 +105,7 @@ export function historico(n: Newsletter, data: string, dias = DIAS_DE_HISTORICO)
         WHERE newsletter_id = ? AND recebido_em >= ? AND recebido_em < ?
         ORDER BY recebido_em ASC`,
     )
-    .all(n.id, paraIso(desde), paraIso(inicio)) as { id: number; recebido_em: string }[];
+    .all(n.id, paraIso(desde), paraIso(fim)) as { id: number; recebido_em: string }[];
   const vistas = new Map<string, EdicaoVista>();
   for (const l of linhas) {
     const dia = dataEdicao(n, new Date(l.recebido_em));
