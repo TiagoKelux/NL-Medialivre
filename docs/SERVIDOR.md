@@ -85,46 +85,31 @@ O próprio painel avisa no topo se a leitura está a falhar ou parada (ver
 
 Do PC, na pasta do projeto, com o código já no git (`git status` limpo).
 
-1. Fazer o pacote e copiá-lo, com o script de instalação:
+1. Fazer o pacote e instalá-lo com `scripts/servidor/deploy.sh`:
 
    ```bash
-   git archive --format=tar.gz -o nwl.tar.gz HEAD
-   git rev-parse --short HEAD          # o commit, para o passo 2
-   gcloud compute scp nwl.tar.gz deploy.sh nwl-monitor:/tmp/
-   gcloud compute ssh nwl-monitor --command "sudo bash /tmp/deploy.sh <commit>"
+   C=$(git rev-parse --short HEAD)
+   git archive --format=tar -o nwl-$C.tar HEAD
+   gcloud compute scp nwl-$C.tar scripts/servidor/deploy.sh nwl-monitor:/tmp/ --zone us-east1-b
+   gcloud compute ssh nwl-monitor --zone us-east1-b --command "sudo bash /tmp/deploy.sh $C"
    ```
 
-2. O `deploy.sh` (não está no repositório; guardar ao lado do pacote):
-
-   ```bash
-   #!/usr/bin/env bash
-   set -euo pipefail
-   COMMIT="${1:?commit}"
-   APP=/opt/nwl
-   TS=$(date +%Y%m%d-%H%M%S)
-
-   tar -xzf /tmp/nwl.tar.gz -C "$APP"
-   echo "$COMMIT" > "$APP/VERSAO"
-   chown -R monitor:monitor "$APP"
-
-   # Cópia da base antes de mexer em nada (segura com o monitor a correr).
-   sudo -u monitor sqlite3 "$APP/data/monitor.db" ".backup '$APP/data/copias/antes-deploy-$TS.db'"
-
-   sudo -u monitor bash -lc "cd $APP && npm ci && npm test && pm2 stop media-livre-monitor && rm -rf .next && npm run build && pm2 restart media-livre-monitor"
-   ```
-
-3. Confirmar: `curl https://34-148-158-177.sslip.io/api/saude` e as últimas
+2. Confirmar: `curl https://34-148-158-177.sslip.io/api/saude` e as últimas
    linhas do `pm2 logs` (`Jobs agendados. Fuso: Europe/Lisbon …`).
 
 Notas:
 
 - O pacote não leva o `.env` nem `data/` (não estão no git): ficam os do
   servidor.
-- Os testes correm antes de parar o monitor: se falharem, o que está em
-  produção fica como estava. Se for o **build** a falhar, o monitor fica
-  parado — corrigir e voltar a instalar, ou instalar o commit anterior.
+- O monitor **não pára** durante a instalação: o build vai para a pasta que
+  não está em uso (`.next-a` ou `.next-b`; a ativa está escrita em
+  `/opt/nwl/.next-ativa`) e só no fim se troca e reinicia, em segundos. Se
+  os testes ou o build falharem, continua a correr a versão anterior.
+- Não mudar estas pastas de nome: o nome fica gravado no build.
 - No arranque, o monitor recalcula os últimos 45 dias com a configuração
-  nova e tapa os dias em falta.
+  nova e tapa os dias em falta. Quando a versão muda regras, isto ocupa a
+  máquina uns 5 minutos e o alerta do `/api/saude` pode disparar e
+  resolver-se sozinho: é esperado.
 - Quando muda o `ecosystem.config.cjs`, o `pm2 restart` não o relê:
   `sudo -u monitor bash -lc 'cd /opt/nwl && pm2 delete media-livre-monitor && pm2 start ecosystem.config.cjs && pm2 save'`.
 - As cópias `antes-deploy-*.db` não são apagadas automaticamente (só as
