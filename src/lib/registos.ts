@@ -9,6 +9,7 @@ import { naoEEdicao } from "./correspondencia.ts";
 import { motivosSemProva } from "./prova.ts";
 import { estadoLeitura } from "./leitura.ts";
 import { extrairArtigos, processarCorpo } from "./conteudo.ts";
+import { edicaoDoEmail, historico, sinaisConteudo } from "./perfil.ts";
 import { dataLocal, horaLocal, paraInstante, paraIso, somarDias, somarMinutos, ultimosDias } from "./tempo.ts";
 import type { CodigoEstado, Newsletter, Periodicidade, Registo, Ressalva } from "./tipos.ts";
 
@@ -200,6 +201,10 @@ export function reavaliar(
     }),
     edicaoAnterior: edicaoAnteriorDe(n, data),
     fechado: fechado === 1,
+    conteudo:
+      emails.length > 0
+        ? sinaisConteudo(edicaoDoEmail(n, emails[0].id, emails[0].recebido_em), historico(n, data))
+        : undefined,
   });
   if (r.codigo === 6) fechado = 1;
 

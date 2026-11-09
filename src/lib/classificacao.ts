@@ -1,4 +1,5 @@
 import type { CodigoEstado, Newsletter } from "./tipos.ts";
+import type { SinaisConteudo } from "./perfil.ts";
 import { dataLocal as dataDe, diaMes, diaSemanaISO, horaLocal, minutosEntre, paraInstante, somarMinutos } from "./tempo.ts";
 import { feriado } from "./feriados.ts";
 import { hashConteudo, semelhancaArtigos } from "./conteudo.ts";
@@ -72,6 +73,11 @@ export interface Contexto {
   edicaoAnterior: EdicaoAnterior | null;
   /** O dia já fechou? Só muda a redação do detalhe, não o código. */
   fechado: boolean;
+  /**
+   * Sinais do 1.º envio contra o histórico da newsletter (perfil.ts): igual a
+   * uma edição antiga, artigos desatualizados, avisos. Opcional.
+   */
+  conteudo?: SinaisConteudo;
 }
 
 export interface Resultado {
@@ -237,12 +243,25 @@ export function classificar(ctx: Contexto): Resultado {
   const provavelmenteRepetida =
     !hashIgual && !artigosIguais && sem !== null && sem.jaccard >= LIMIAR_ARTIGOS;
 
-  const comparavel = comparavelHash || artigosIguais;
-  const repetido = hashIgual || artigosIguais;
+  // Contra todo o histórico (perfil.ts): uma edição antiga reenviada, ou
+  // artigos muito mais velhos do que o normal desta newsletter.
+  const sinais = ctx.conteudo;
+  const igualAntiga = !hashIgual && !artigosIguais && sinais?.igualA ? sinais.igualA : null;
+  const desatualizada = !hashIgual && !artigosIguais && !igualAntiga ? (sinais?.desatualizada ?? null) : null;
+
+  const comparavel = comparavelHash || artigosIguais || igualAntiga !== null || !!sinais?.frescoProvado;
+  const repetido = hashIgual || artigosIguais || igualAntiga !== null || desatualizada !== null;
   const diaAnterior = anterior ? diaMes(anterior.data) : "";
 
-  const fraseConteudo = !comparavel
-    ? "Sem edição anterior comparável."
+  const extra = [sinais?.idade, ...(sinais?.avisos ?? [])].filter(Boolean).join(" ");
+  const fraseConteudo = (igualAntiga
+    ? igualAntiga.como === "hash"
+      ? `Conteúdo igual ao da edição de ${diaMes(igualAntiga.data)} → edição antiga reenviada.`
+      : `Os mesmos artigos da edição de ${diaMes(igualAntiga.data)} → edição antiga reenviada.`
+    : desatualizada
+      ? desatualizada
+      : !comparavelHash && !artigosIguais
+        ? "Sem edição anterior comparável."
     : hashIgual
       ? `Hash igual ao da edição de ${diaAnterior} → conteúdo repetido.`
       : artigosIguais
@@ -250,7 +269,7 @@ export function classificar(ctx: Contexto): Resultado {
         : provavelmenteRepetida
           ? `Hash diferente da edição de ${diaAnterior}, mas ⚠ provavelmente repetida: ` +
             `${sem!.iguais} de ${sem!.total} artigos iguais à edição anterior.`
-          : `Hash diferente da edição de ${diaAnterior} → conteúdo novo.`;
+          : `Hash diferente da edição de ${diaAnterior} → conteúdo novo.`) + (extra ? ` ${extra}` : "");
 
   const base = {
     horaRecebida,

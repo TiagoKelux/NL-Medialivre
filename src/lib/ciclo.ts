@@ -6,6 +6,7 @@ import { temGmail } from "./gmail/config.ts";
 import { coberturaDesde, registarLeitura } from "./leitura.ts";
 import { dataLocal } from "./tempo.ts";
 import { sinalDeVida, vigiarCaixa, vigiarListas } from "./vigia.ts";
+import { recolherDatasArtigos } from "./datas-artigos.ts";
 
 /**
  * Janela mínima de cada leitura: uma semana. Uma paragem do PC mais curta do
@@ -116,6 +117,15 @@ async function ciclo(): Promise<string[]> {
   if (fechados > 0) passos.unshift(`${fechados} registo(s) fechado(s)`);
   const revistos = reverNaoSaiu();
   if (revistos > 0) passos.push(`${revistos} "Não Saiu" revisto(s)`);
+
+  // A data de publicação dos artigos das edições recentes (datas-artigos.ts):
+  // quem ganhou datas reavalia-se, para a prova de conteúdo desatualizado.
+  const datas = await recolherDatasArtigos();
+  if (datas.emails.length > 0) {
+    const { reavaliarEmails } = await import("./recolha.ts");
+    const n = reavaliarEmails(datas.emails);
+    if (n > 0) passos.push(`${datas.comData} data(s) de artigos, ${n} registo(s) revisto(s)`);
+  }
 
   // Os editores ainda mandam as diárias? E cada newsletter, uma a uma? (O
   // editor corta lista a lista.) Escreve no log só quando muda.

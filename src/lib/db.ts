@@ -95,6 +95,19 @@ export function db(): Database.Database {
        ON emails (recebido_em, remetente, assunto, newsletter_id, marcas)`,
   );
 
+  // Data de publicação de cada artigo para onde as edições apontam
+  // (datas-artigos.ts): a prova de "conteúdo desatualizado" que não depende
+  // do aspeto da newsletter. Um URL por linha, pedido uma vez.
+  bd.exec(
+    `CREATE TABLE IF NOT EXISTS artigos (
+       url          TEXT PRIMARY KEY,
+       publicado_em TEXT DEFAULT NULL,
+       estado       INTEGER NOT NULL DEFAULT 0,
+       tentativas   INTEGER NOT NULL DEFAULT 0,
+       pedido_em    TEXT DEFAULT NULL
+     )`,
+  );
+
   ligacao = bd;
   versaoAplicada = -1;
   sincronizarRegras(bd);
