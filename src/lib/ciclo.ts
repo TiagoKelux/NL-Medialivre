@@ -127,6 +127,17 @@ async function ciclo(): Promise<string[]> {
     if (n > 0) passos.push(`${datas.comData} data(s) de artigos, ${n} registo(s) revisto(s)`);
   }
 
+  // Avisos do cliente por email (avisos.ts): com chave de IA, lê-os e propõe
+  // pausas; sem ela, deixa-os para tratar à mão. Nunca aplica nada, e uma
+  // falha aqui não pode parar o ciclo.
+  try {
+    const { interpretarPendentes } = await import("./avisos.ts");
+    const a = await interpretarPendentes();
+    if (a) passos.push(a);
+  } catch (erro) {
+    passos.push(`avisos: ${(erro as Error).message}`);
+  }
+
   // Os editores ainda mandam as diárias? E cada newsletter, uma a uma? (O
   // editor corta lista a lista.) Escreve no log só quando muda.
   await vigiarCaixa();

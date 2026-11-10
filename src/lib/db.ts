@@ -138,6 +138,48 @@ export function db(): Database.Database {
     bd.exec(`ALTER TABLE registos ADD COLUMN fonte TEXT DEFAULT NULL`);
   }
 
+  // Avisos do cliente por email (avisos.ts): cada email de um remetente
+  // autorizado (AVISOS_REMETENTES) e o que se propôs a partir dele. As
+  // propostas nunca se aplicam sozinhas: alguém decide no painel (/avisos).
+  bd.exec(
+    `CREATE TABLE IF NOT EXISTS avisos (
+       id             INTEGER PRIMARY KEY AUTOINCREMENT,
+       email_id       INTEGER NOT NULL UNIQUE,
+       remetente      TEXT NOT NULL,
+       assunto        TEXT NOT NULL,
+       recebido_em    TEXT NOT NULL,
+       estado         TEXT NOT NULL DEFAULT 'pendente',
+       tentativas     INTEGER NOT NULL DEFAULT 0,
+       interpretado_em TEXT DEFAULT NULL,
+       modelo         TEXT DEFAULT NULL,
+       resumo         TEXT DEFAULT NULL,
+       propostas      TEXT DEFAULT NULL,
+       outros         TEXT DEFAULT NULL,
+       erro           TEXT DEFAULT NULL,
+       tratado_em     TEXT DEFAULT NULL,
+       tratado_por    TEXT DEFAULT NULL
+     )`,
+  );
+  // Dias em que uma newsletter não se espera (pausas.ts): anunciados pelo
+  // cliente, criados no painel ou aplicados a partir de um aviso. Sem email
+  // nesses dias, o registo é 6 e não "Não Saiu"; com email, conta como saída.
+  bd.exec(
+    `CREATE TABLE IF NOT EXISTS pausas (
+       id            INTEGER PRIMARY KEY AUTOINCREMENT,
+       newsletter_id TEXT NOT NULL,
+       de            TEXT NOT NULL,
+       ate           TEXT NOT NULL,
+       motivo        TEXT NOT NULL,
+       origem        TEXT NOT NULL,
+       aviso_id      INTEGER DEFAULT NULL,
+       criada_em     TEXT NOT NULL,
+       criada_por    TEXT DEFAULT NULL,
+       anulada_em    TEXT DEFAULT NULL,
+       anulada_por   TEXT DEFAULT NULL
+     )`,
+  );
+  bd.exec(`CREATE INDEX IF NOT EXISTS idx_pausas_nl ON pausas (newsletter_id, de, ate) WHERE anulada_em IS NULL`);
+
   ligacao = bd;
   versaoAplicada = -1;
   sincronizarRegras(bd);

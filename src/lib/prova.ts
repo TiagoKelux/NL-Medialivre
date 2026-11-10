@@ -7,6 +7,7 @@ import { lerCampanhas, marcasDoEmail, type Campanhas, type Marcas } from "./marc
 import { dataEdicao, intervaloDeBusca } from "./edicao.ts";
 import { dataLocal, diaMes, horaLocal, paraInstante, paraIso, somarDias } from "./tempo.ts";
 import type { Newsletter } from "./tipos.ts";
+import { eRemetenteDeAvisos } from "./avisos-remetentes.ts";
 
 /**
  * Prova de ausência: quando é que "não chegou nada" quer mesmo dizer "Não
@@ -285,6 +286,8 @@ export function motivosSemProva(n: Newsletter, data: string, horaLimite: Date): 
   ).filter(
     (e) =>
       dataEdicao(n, new Date(e.recebido_em)) === data &&
+      // Um aviso do cliente (avisos.ts) não é edição: pode citar a newsletter.
+      !eRemetenteDeAvisos(e.remetente) &&
       podeSerDe(n, e.remetente, e.assunto, marcasDoEmail(e.id, e.marcas), campanhas),
   );
   const fora = excluidos(candidatos.map((e) => e.id));

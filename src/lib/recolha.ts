@@ -10,6 +10,8 @@ import { dataEdicao, edicaoAnteriorEmFalta } from "./edicao.ts";
 import { NEWSLETTERS, newsletterPorId } from "../../config/newsletters.ts";
 import { paraIso, somarDias } from "./tempo.ts";
 import type { Newsletter } from "./tipos.ts";
+import { eRemetenteDeAvisos } from "./avisos-remetentes.ts";
+import { registarAvisos } from "./avisos.ts";
 
 /**
  * Chaves dos registos a reavaliar: a newsletter e o dia da edição do email e,
@@ -168,6 +170,8 @@ export async function recolher(horas = 24, ler?: LeitorCaixa, pedir?: Pedir): Pr
 
   // Chave `newsletterId|data` dos registos que é preciso reavaliar.
   const afetados = new Set<string>();
+  // Emails de remetentes autorizados a mandar avisos (avisos.ts).
+  const avisos: { id: number; remetente: string; assunto: string; recebidoEm: string }[] = [];
 
   const gravar = bd.transaction(() => {
     for (const m of mensagens) {
@@ -205,6 +209,12 @@ export async function recolher(horas = 24, ler?: LeitorCaixa, pedir?: Pedir): Pr
 
       resumo.novas++;
       const recebido = new Date(m.receivedDateTime);
+      // Um aviso do cliente não é edição de nenhuma newsletter, mesmo que a
+      // cite ou reencaminhe uma: fica para os avisos e não mexe nos registos.
+      if (!n && eRemetenteDeAvisos(remetente)) {
+        avisos.push({ id: Number(res.lastInsertRowid), remetente, assunto, recebidoEm });
+        continue;
+      }
       if (!novoMaisAntigo || recebido < novoMaisAntigo) novoMaisAntigo = recebido;
       if (n) {
         resumo.atribuidas++;
@@ -215,6 +225,7 @@ export async function recolher(horas = 24, ler?: LeitorCaixa, pedir?: Pedir): Pr
     }
   });
   gravar();
+  if (avisos.length > 0) registarAvisos(avisos);
 
   for (const c of reclassificar()) afetados.add(c);
 

@@ -89,6 +89,11 @@ export interface Contexto {
    * uma edição antiga, artigos desatualizados, avisos. Opcional.
    */
   conteudo?: SinaisConteudo;
+  /**
+   * Pausa anunciada para este dia (pausas.ts): sem email é 6, como num
+   * feriado; com email conta como qualquer outro dia. Opcional.
+   */
+  pausa?: { motivo: string } | null;
 }
 
 export interface Resultado {
@@ -161,6 +166,18 @@ export function classificar(ctx: Contexto): Resultado {
       atrasoMinutos: null,
       nrOcorrencias,
       detalhe: "Newsletter desativada na configuração.",
+    };
+  }
+
+  // Uma pausa anunciada pelo cliente: sem email não se espera nada (nunca
+  // "Não Saiu"); se chegou na mesma, saiu — conta como qualquer outro dia.
+  if (ctx.pausa && nrOcorrencias === 0) {
+    return {
+      codigo: 6,
+      horaRecebida: null,
+      atrasoMinutos: null,
+      nrOcorrencias,
+      detalhe: `Pausa anunciada (${ctx.pausa.motivo}): não prevista neste dia.`,
     };
   }
 

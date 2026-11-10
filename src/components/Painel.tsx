@@ -526,7 +526,8 @@ export default function Painel({ hoje, leitura, listasEmSilencio, reconquistas, 
         </p>
         <p className="soltos">
           <Link href="/fichas">Fichas das newsletters: o normal de cada uma e a última edição ›</Link>{" · "}
-          <Link href="/controlo">Controlo do cliente: carregar o Excel e comparar ›</Link>
+          <Link href="/controlo">Controlo do cliente: carregar o Excel e comparar ›</Link>{" · "}
+          <Link href="/avisos">Avisos e pausas: dias em que uma newsletter não sai ›</Link>
         </p>
       </header>
 

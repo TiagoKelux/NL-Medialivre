@@ -13,6 +13,8 @@ import { edicaoDoEmail, historico, sinaisConteudo } from "./perfil.ts";
 import { dataLocal, diaMes, horaLocal, paraInstante, paraIso, somarDias, somarMinutos, ultimosDias } from "./tempo.ts";
 import { DESIGNACOES, type CodigoEstado, type Newsletter, type Periodicidade, type Registo, type Ressalva } from "./tipos.ts";
 import { codigoDaMarca, marcaDoCliente } from "./controlo-cliente.ts";
+import { pausaNoDia } from "./pausas.ts";
+import { eRemetenteDeAvisos } from "./avisos-remetentes.ts";
 
 /** "09/11 às 10:35", hora de Lisboa. */
 function diaMesDe(isoUtc: string): string {
@@ -67,6 +69,7 @@ export function gerarDia(data: string = dataLocal()): number {
         ocorrencias: [],
         edicaoAnterior: null,
         fechado: false,
+        pausa: pausaNoDia(n.id, data),
       });
       // Código 6 nasce fechado: não há nada à espera de acontecer.
       const fechado = r.codigo === 6 ? 1 : 0;
@@ -208,6 +211,7 @@ export function reavaliar(
     }),
     edicaoAnterior: edicaoAnteriorDe(n, data),
     fechado: fechado === 1,
+    pausa: pausaNoDia(n.id, data),
     conteudo:
       emails.length > 0
         ? sinaisConteudo(edicaoDoEmail(n, emails[0].id, emails[0].recebido_em), historico(n, data))
@@ -577,7 +581,7 @@ export function porClassificar(dias = 7): EmailPorClassificar[] {
         ORDER BY recebido_em DESC`,
     )
     .all(paraIso(desde)) as EmailPorClassificar[];
-  return linhas.filter((l) => !naoEEdicao(l.assunto));
+  return linhas.filter((l) => !naoEEdicao(l.assunto) && !eRemetenteDeAvisos(l.remetente));
 }
 
 /**

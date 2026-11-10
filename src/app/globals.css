@@ -856,3 +856,20 @@ header.topo p a:hover { text-decoration: underline; }
 .tabela-controlo td:first-child { white-space: nowrap; }
 .controlo-dias { display: inline-flex; flex-wrap: wrap; gap: 2px 6px; color: var(--texto-fraco); }
 .controlo-nota { color: var(--texto-fraco); font-size: 12px; padding: 0 8px; }
+
+/* ── Avisos e pausas (/avisos) ─────────────────────────────────────────── */
+.avisos h2 { margin: 26px 0 10px; }
+.avisos-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.avisos-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--texto-fraco); }
+.avisos-form label.largo { flex: 1 1 240px; }
+.avisos-form select, .avisos-form input { font: inherit; font-size: 13.5px; padding: 6px 8px; max-width: 100%; }
+.aviso-email { padding: 14px 16px; margin-bottom: 14px; font-size: 13.5px; }
+.aviso-email.estado-tratado { opacity: 0.7; }
+.aviso-cabeca { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.aviso-email .erro { color: var(--c5); }
+.aviso-propostas li { padding: 8px 0; border-top: 1px solid var(--borda, rgba(127,127,127,0.25)); }
+.aviso-propostas li.invalida, .aviso-propostas li.rejeitada { opacity: 0.65; }
+.aviso-propostas blockquote { margin: 6px 0; padding-left: 10px; border-left: 3px solid var(--texto-fraco); color: var(--texto-fraco); }
+.avisos .acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.aviso-texto { white-space: pre-wrap; word-break: break-word; font-size: 12.5px; max-height: 320px; overflow: auto; }
+.avisos tr.anulada td { opacity: 0.55; }
