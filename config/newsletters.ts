@@ -554,8 +554,10 @@ export const NEWSLETTERS: Newsletter[] = [
     diasMes: null,
     horaPrevista: "12:00",
     toleranciaMinutos: 390,
-    remetentes: [],
-    padraoRemetente: "",
+    // Primeira edição vista a 09/11/2026 18:04; o mesmo endereço serve várias
+    // newsletters Premium, distingue-se pelo nome do remetente.
+    remetentes: ["info@assinaturas.jornaldenegocios.pt"],
+    padraoRemetente: "Negócios Premium Valor Acrescentado",
     padraoAssunto: "",
     marcaCorpo: "",
     ativa: true,
@@ -1035,7 +1037,9 @@ export const NEWSLETTERS: Newsletter[] = [
     marcaCorpo: "",
     ativa: true,
   },
-  // Controlo do cliente (Excel "Newsletters Horários", 09/11/2026): não estava configurada; nunca chegou à caixa (falta inscrever).
+  // Controlo do cliente (Excel "Newsletters Horários", 09/11/2026): não estava configurada.
+  // Primeira edição vista a 10/11/2026 10:30; o endereço é comum à TV Guia,
+  // distingue-se pelo nome do remetente.
   {
     id: "tvguia-noticias-do-dia",
     marca: "TV Guia",
@@ -1045,13 +1049,14 @@ export const NEWSLETTERS: Newsletter[] = [
     diasMes: null,
     horaPrevista: "10:30",
     toleranciaMinutos: 30,
-    remetentes: [],
-    padraoRemetente: "",
+    remetentes: ["info@news.tvguia.pt"],
+    padraoRemetente: "TVGUIA Notícias do dia",
     padraoAssunto: "",
     marcaCorpo: "",
     ativa: true,
   },
-  // Controlo do cliente (Excel "Newsletters Horários", 09/11/2026): não estava configurada; nunca chegou à caixa (falta inscrever).
+  // Controlo do cliente (Excel "Newsletters Horários", 09/11/2026): não estava configurada.
+  // Primeira edição vista a 09/11/2026 17:31 (nome do remetente, como a anterior).
   {
     id: "tvguia-novelas",
     marca: "TV Guia",
@@ -1061,8 +1066,8 @@ export const NEWSLETTERS: Newsletter[] = [
     diasMes: null,
     horaPrevista: "17:30",
     toleranciaMinutos: 30,
-    remetentes: [],
-    padraoRemetente: "",
+    remetentes: ["info@news.tvguia.pt"],
+    padraoRemetente: "TVGUIA Novelas",
     padraoAssunto: "",
     marcaCorpo: "",
     ativa: true,
