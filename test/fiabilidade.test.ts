@@ -501,10 +501,10 @@ test("positivo: 'Não Saiu' só fecha com uma leitura feita depois do limite, e 
   // remetente, chegou depois do limite — a caixa estava a receber do editor.
   gravarEmail(CM("Exclusivos"), "véspera", lisboa("2026-09-30", "06:05"), "cm-exclusivos");
   gravarEmail(CM("Bom dia"), "manchete", lisboa(dia, "10:00"), "cm-bom-dia");
-  const limite = lisboa(dia, "06:30"); // cm-exclusivos: 06:00 + 30 min
+  const limite = lisboa(dia, "07:30"); // cm-exclusivos: janela 6h-7h, até 07:00 + 30 min
 
   // Última leitura antes do limite (PC desligado de manhã): não fecha.
-  registos.fecharVencidos({ ok: lisboa(dia, "06:20"), desde: lisboa("2026-09-20", "00:00") });
+  registos.fecharVencidos({ ok: lisboa(dia, "07:20"), desde: lisboa("2026-09-20", "00:00") });
   assert.equal(registo("cm-exclusivos", dia).fechado, 0);
 
   // Leitura logo a seguir ao limite, dentro da margem: ainda não fecha.
@@ -517,14 +517,14 @@ test("positivo: 'Não Saiu' só fecha com uma leitura feita depois do limite, e 
 
   // Regra do cliente: leitura boa depois do limite (+30 min) e da margem, a
   // cobrir o dia: fecha logo como 5 — já não há prazo de 6 h.
-  registos.fecharVencidos({ ok: lisboa(dia, "06:45"), desde: lisboa("2026-09-20", "00:00") });
+  registos.fecharVencidos({ ok: lisboa(dia, "07:45"), desde: lisboa("2026-09-20", "00:00") });
   assert.deepEqual(estado("cm-exclusivos", dia), NAO_SAIU);
   assert.match(registo("cm-exclusivos", dia).detalhe, /→ Não Saiu/);
 });
 
 test("email que chega depois de fechado corrige o 'Não Saiu'", () => {
   const dia = "2026-10-01";
-  gravarEmail(CM("Exclusivos"), "x", lisboa(dia, "07:20"), "cm-exclusivos");
+  gravarEmail(CM("Exclusivos"), "x", lisboa(dia, "08:20"), "cm-exclusivos");
   const r = registos.reavaliar("cm-exclusivos", dia);
   assert.equal(r?.codigo_estado, 2);
   assert.equal(r?.atraso_minutos, 50);

@@ -55,13 +55,13 @@ function gravar(newsletterId: string, data: string, hora: string, datados: numbe
   for (const u of urls.slice(0, datados)) gravarArtigo.run(u, publicado);
 }
 
-// Record Premium (diária, 07:00, tolerância 30 min): 12 edições até hoje, a
+// Record Premium (diária, janela 7h-8h: 07:00 com tolerância até 08:30): 12 edições até hoje, a
 // de hoje com artigos de há 10 dias — nada de novo desde a anterior.
 for (let i = 11; i >= 0; i--) {
   const data = somarDias(HOJE, -i);
   const tarde = i === 4 || i === 7;
   if (i === 0) gravar("record-premium", data, "07:05", 3, 10, 1);
-  else gravar("record-premium", data, tarde ? "07:45" : "07:05", 3, 0.25, 1);
+  else gravar("record-premium", data, tarde ? "08:45" : "07:05", 3, 0.25, 1);
   // Um segundo envio no mesmo dia não é outra edição nem mexe na hora.
   if (i === 5) gravar("record-premium", data, "11:00", 3, 0.1);
 }
@@ -80,7 +80,7 @@ test("ficha com perfil estável: edições, dias, hora, artigos, idade e cobertu
   assert.equal(f.dias.vistos[0], 2, "duas segundas-feiras (02/11 e 09/11)");
   assert.equal(f.dias.foraDoCalendario, 0);
 
-  assert.deepEqual(f.hora, { prevista: "07:00", limite: "07:30", mediana: "07:05", p90: "07:45", aTempo: 10 / 12 });
+  assert.deepEqual(f.hora, { prevista: "07:00", limite: "08:30", mediana: "07:05", p90: "08:45", aTempo: 10 / 12 });
 
   assert.deepEqual(f.artigos, { mediana: 4, min: 4, max: 4 });
   assert.equal(f.coberturaDatas, 0.75);

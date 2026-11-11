@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { Comparacao } from "../lib/importar-controlo.ts";
+import type { ExcelPorEmail } from "../lib/controlo-email.ts";
 import type { Categoria, Diferenca } from "../lib/controlo-cliente.ts";
 import { DESIGNACOES, type CodigoEstado } from "../lib/tipos.ts";
 
@@ -57,7 +58,15 @@ function Dias({ lista, comCodigos }: { lista: Diferenca[]; comCodigos: boolean }
   );
 }
 
-export default function Controlo({ dados }: { dados: Comparacao }) {
+export default function Controlo({
+  dados,
+  porEmail,
+  remetentes,
+}: {
+  dados: Comparacao;
+  porEmail: ExcelPorEmail | null;
+  remetentes: string[];
+}) {
   const [estado, setEstado] = useState<{ aEnviar: boolean; mensagem: string | null; ok: boolean }>({
     aEnviar: false,
     mensagem: null,
@@ -146,6 +155,27 @@ export default function Controlo({ dados }: { dados: Comparacao }) {
             </ul>
           </details>
         )}
+      </section>
+
+      <section className="cartao controlo-email">
+        <h2>Excel por email</h2>
+        {remetentes.length === 0 ? (
+          <p>Desligado: nenhum endereço autorizado a mandar o Excel (CONTROLO_REMETENTES).</p>
+        ) : (
+          <p>
+            O Excel que chega de {remetentes.join(", ")} à caixa do monitor é importado sozinho, como se fosse carregado
+            aqui.
+          </p>
+        )}
+        {porEmail ? (
+          <p className={porEmail.ok ? "ok" : "erro"}>
+            Último recebido: {quando(porEmail.recebidoEm)} · {porEmail.assunto || "(sem assunto)"}
+            {porEmail.ficheiro ? ` · ${porEmail.ficheiro}` : ""} — {porEmail.ok ? "importado. " : "não importado. "}
+            {porEmail.mensagem}
+          </p>
+        ) : remetentes.length > 0 ? (
+          <p className="controlo-ultima">Ainda não chegou nenhum.</p>
+        ) : null}
       </section>
 
       <h2>

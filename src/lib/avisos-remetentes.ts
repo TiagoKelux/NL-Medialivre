@@ -28,3 +28,24 @@ export function eRemetenteDeAvisos(remetente: string, autorizados = remetentesAu
   if (autorizados.length === 0) return false;
   return autorizados.includes(endereco(remetente));
 }
+
+/**
+ * Quem pode mandar o Excel de controlo por email (controlo-email.ts): os
+ * endereços em `CONTROLO_REMETENTES`, com as mesmas regras. Vazio = ninguém.
+ */
+export function remetentesDoControlo(valor = process.env.CONTROLO_REMETENTES ?? ""): string[] {
+  return remetentesAutorizados(valor);
+}
+
+export function eRemetenteDoControlo(remetente: string, autorizados = remetentesDoControlo()): boolean {
+  if (autorizados.length === 0) return false;
+  return autorizados.includes(endereco(remetente));
+}
+
+/**
+ * Email do cliente para o monitor (aviso ou Excel de controlo): nunca é edição
+ * de newsletter nem entra nas listas "por atribuir".
+ */
+export function eRemetenteDoCliente(remetente: string): boolean {
+  return eRemetenteDeAvisos(remetente) || eRemetenteDoControlo(remetente);
+}

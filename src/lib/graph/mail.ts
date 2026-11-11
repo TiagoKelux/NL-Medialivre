@@ -15,6 +15,8 @@ export interface MensagemGraph {
   from?: { emailAddress?: { address?: string; name?: string } };
   subject?: string;
   body?: { contentType?: string; content?: string };
+  /** Anexos .xlsx; só o leitor do Gmail os preenche (controlo-email.ts). */
+  anexos?: { nome: string; conteudo: Buffer }[];
 }
 
 async function graph(): Promise<Client> {

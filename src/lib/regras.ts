@@ -14,7 +14,7 @@ import {
 } from "./regras-fusao.ts";
 import { paraIso, ultimosDias } from "./tempo.ts";
 import type { Newsletter } from "./tipos.ts";
-import { eRemetenteDeAvisos } from "./avisos-remetentes.ts";
+import { eRemetenteDoCliente } from "./avisos-remetentes.ts";
 
 /**
  * "Por classificar": o que o painel deixa a equipa fazer sem abrir código.
@@ -411,7 +411,7 @@ export function porClassificar(dias = 30): EmailPorClassificar[] {
     .filter(
       (l) =>
         !naoEEdicao(l.assunto) &&
-        !eRemetenteDeAvisos(l.remetente) &&
+        !eRemetenteDoCliente(l.remetente) &&
         !mensagens.has(l.internet_message_id) &&
         !assuntos.has(normalizarAssunto(l.assunto)) &&
         // Já reconhecido pela configuração atual: a próxima leitura atribui-o.

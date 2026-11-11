@@ -16,6 +16,13 @@ export interface EmailLido {
   assunto: string;
   data: Date;
   corpoHtml: string;
+  /** Anexos .xlsx (o Excel de controlo do cliente, controlo-email.ts). */
+  anexos: Anexo[];
+}
+
+export interface Anexo {
+  nome: string;
+  conteudo: Buffer;
 }
 
 /** Junta as linhas dobradas e devolve os cabeçalhos como mapa. */
@@ -150,6 +157,40 @@ function extrairHtml(cabecalhos: Map<string, string>, corpo: string): string {
 }
 
 /**
+ * Anexos de folha de cálculo (.xlsx) de um multipart, a qualquer profundidade.
+ * Só estes: é o único anexo que o monitor usa. O conteúdo vem cru — validar
+ * se é mesmo um Excel é de quem o lê.
+ */
+function extrairAnexos(cabecalhos: Map<string, string>, corpo: string): Anexo[] {
+  const contentType = cabecalhos.get("content-type") ?? "";
+  const fronteira = (contentType.match(/boundary="?([^";]+)"?/i) || [])[1];
+  if (!fronteira) return [];
+  const anexos: Anexo[] = [];
+  const partes = corpo.split(new RegExp(`--${fronteira.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+  for (const parte of partes) {
+    if (!parte.trim() || parte.trim() === "--") continue;
+    const { cabecalhos: ch, corpo: cp } = separar(parte.replace(/^\n/, ""));
+    const tipo = ch.get("content-type") ?? "";
+    if (/multipart\//i.test(tipo)) {
+      anexos.push(...extrairAnexos(ch, cp));
+      continue;
+    }
+    const disposicao = ch.get("content-disposition") ?? "";
+    const nomeBruto =
+      (disposicao.match(/filename="?([^";]+)"?/i) || [])[1] ?? (tipo.match(/name="?([^";]+)"?/i) || [])[1] ?? "";
+    const nome = descodificarCabecalho(nomeBruto).trim();
+    if (!/spreadsheetml/i.test(tipo) && !/\.xlsx$/i.test(nome)) continue;
+    const codificacao = (ch.get("content-transfer-encoding") ?? "").toLowerCase();
+    // A fonte lê-se em latin1: cada carácter é um byte.
+    const conteudo = codificacao.includes("base64")
+      ? Buffer.from(cp.replace(/\s+/g, ""), "base64")
+      : Buffer.from(cp.replace(/\n$/, ""), "latin1");
+    anexos.push({ nome: nome || "anexo.xlsx", conteudo });
+  }
+  return anexos;
+}
+
+/**
  * `tolerante`: para emails lidos da caixa, onde a hora de chegada vem do
  * servidor. Não rejeita um Date ilegível nem a falta de Message-ID (devolve-o
  * vazio e quem chama arranja um identificador). Saltar o email seria pior:
@@ -175,5 +216,6 @@ export function lerEml(bruto: string, opcoes: { tolerante?: boolean } = {}): Ema
     assunto: descodificarCabecalho(cabecalhos.get("subject") ?? ""),
     data,
     corpoHtml: extrairHtml(cabecalhos, corpo),
+    anexos: extrairAnexos(cabecalhos, corpo),
   };
 }

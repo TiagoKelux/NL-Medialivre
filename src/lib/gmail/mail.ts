@@ -102,6 +102,7 @@ export async function lerCaixa(
             from: { emailAddress: { address: lido.remetente } },
             subject: lido.assunto,
             body: { contentType: "html", content: lido.corpoHtml },
+            anexos: lido.anexos,
           });
         }
       } finally {

@@ -312,6 +312,7 @@ npm run dev               # http://localhost:3000
 | `MONITOR_INICIO` | Primeiro dia monitorizado (AAAA-MM-DD); antes dele não há registos |
 | `MARCAR_ABERTURA` | `0` desliga a abertura automática dos emails |
 | `HEALTHCHECK_URL` | Opcional (healthchecks.io). Não é usado no servidor atual |
+| `CONTROLO_REMETENTES` | Endereços (separados por vírgulas) de quem manda o Excel de controlo por email; o anexo é importado sozinho, como em /controlo. Vazio = desligado |
 | `GRAPH_CLIENT_ID`, `GRAPH_TENANT_ID` | Só para o caminho antigo do Microsoft Graph (abaixo) |
 
 Sem caixa configurada a aplicação arranca na mesma: gera os registos e mostra

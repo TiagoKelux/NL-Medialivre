@@ -10,7 +10,8 @@ import { dataEdicao, edicaoAnteriorEmFalta } from "./edicao.ts";
 import { NEWSLETTERS, newsletterPorId } from "../../config/newsletters.ts";
 import { paraIso, somarDias } from "./tempo.ts";
 import type { Newsletter } from "./tipos.ts";
-import { eRemetenteDeAvisos } from "./avisos-remetentes.ts";
+import { eRemetenteDeAvisos, eRemetenteDoControlo } from "./avisos-remetentes.ts";
+import { importarExcelDoEmail } from "./controlo-email.ts";
 import { registarAvisos } from "./avisos.ts";
 
 /**
@@ -172,6 +173,8 @@ export async function recolher(horas = 24, ler?: LeitorCaixa, pedir?: Pedir): Pr
   const afetados = new Set<string>();
   // Emails de remetentes autorizados a mandar avisos (avisos.ts).
   const avisos: { id: number; remetente: string; assunto: string; recebidoEm: string }[] = [];
+  // Emails com o Excel de controlo do cliente (controlo-email.ts).
+  const excels: Parameters<typeof importarExcelDoEmail>[0][] = [];
 
   const gravar = bd.transaction(() => {
     for (const m of mensagens) {
@@ -209,6 +212,12 @@ export async function recolher(horas = 24, ler?: LeitorCaixa, pedir?: Pedir): Pr
 
       resumo.novas++;
       const recebido = new Date(m.receivedDateTime);
+      // O Excel de controlo do cliente por email (controlo-email.ts): importa-se
+      // depois de gravado tudo; não é edição de nenhuma newsletter.
+      if (!n && eRemetenteDoControlo(remetente) && (m.anexos?.length || !eRemetenteDeAvisos(remetente))) {
+        excels.push({ remetente, assunto, recebidoEm, anexos: m.anexos ?? [] });
+        continue;
+      }
       // Um aviso do cliente não é edição de nenhuma newsletter, mesmo que a
       // cite ou reencaminhe uma: fica para os avisos e não mexe nos registos.
       if (!n && eRemetenteDeAvisos(remetente)) {
@@ -226,6 +235,15 @@ export async function recolher(horas = 24, ler?: LeitorCaixa, pedir?: Pedir): Pr
   });
   gravar();
   if (avisos.length > 0) registarAvisos(avisos);
+  // Pela ordem de chegada: o mais recente fica a valer. O importador já
+  // reavalia os dias cuja marca mudou.
+  for (const e of excels.sort((a, b) => a.recebidoEm.localeCompare(b.recebidoEm))) {
+    try {
+      importarExcelDoEmail(e);
+    } catch (erro) {
+      console.error(`[controlo] Excel por email não importado: ${(erro as Error).message}`);
+    }
+  }
 
   for (const c of reclassificar()) afetados.add(c);
 

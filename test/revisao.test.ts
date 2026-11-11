@@ -216,14 +216,14 @@ const mensagem = (id: string, remetente: string, assunto: string, quando: Date, 
 });
 
 test("email por atribuir que pode ser dela, lido depois do fecho, reabre o 'Não Saiu'", async () => {
-  // O "Não Saiu" fecha com o canário (Benfica às 12:10). A edição do Porto
+  // O "Não Saiu" fecha com o canário (Benfica às 12:40, depois do limite do Porto, 12:30). A edição do Porto
   // chega às 14:00 — ainda dentro da janela — com um nome que nenhuma regra
   // conhece, e fica por atribuir. A recolha só reavaliava as newsletters dos
   // emails atribuídos: o "Não Saiu" ficava, contra a regra 4 da prova.
   const dia = "2026-09-22";
   registos.gerarDia(dia);
   gravar(RECORD("Porto"), "véspera", lisboa("2026-09-21", "11:00"), "record-porto");
-  gravar(RECORD("Benfica"), "canário", lisboa(dia, "12:10"), "record-benfica");
+  gravar(RECORD("Benfica"), "canário", lisboa(dia, "12:40"), "record-benfica");
   leituraBoa();
   assert.deepEqual(estado("record-porto", dia), NAO_SAIU, "pré-condição");
 
