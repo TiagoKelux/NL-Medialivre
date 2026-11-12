@@ -1087,7 +1087,8 @@ export const NEWSLETTERS: Newsletter[] = [
     marcaCorpo: "",
     ativa: true,
   },
-  // Controlo do cliente (Excel "Newsletters Horários", 09/11/2026): não estava configurada; nunca chegou à caixa (falta inscrever).
+  // Controlo do cliente (Excel "Newsletters Horários", 09/11/2026): não estava configurada.
+  // Primeira edição vista a 12/11/2026 11:01 (nome do remetente, como as anteriores).
   {
     id: "tvguia-receitas",
     marca: "TV Guia",
@@ -1098,8 +1099,8 @@ export const NEWSLETTERS: Newsletter[] = [
     // Folha Horário de 11/11/2026: 11h-12h.
     horaPrevista: "11:00",
     toleranciaMinutos: 90,
-    remetentes: [],
-    padraoRemetente: "",
+    remetentes: ["info@news.tvguia.pt"],
+    padraoRemetente: "TVGUIA Receitas",
     padraoAssunto: "",
     marcaCorpo: "",
     ativa: true,
